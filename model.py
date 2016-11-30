@@ -95,4 +95,4 @@ class Network(object):
 		return T.batched_dot(fmap, fmap.dimshuffle(0,2,1))/T.prod(fmap.shape)
 
 	def style_loss(self, out_layer, target_layer):
-		return T.sum(T.sqr(batched_gram(out_layer) - batched_gram(target_layer)), axis=(1,2))
+		return T.mean(T.sum(T.sqr(batched_gram(out_layer) - batched_gram(target_layer)), axis=(1,2)))
