@@ -86,3 +86,13 @@ class Network(object):
 		download_if_not_exists(LOSS_NET_MODEL_FILE_PATH, LOSS_NET_DOWNLOAD_LINK, \
 			"Downloading the Loss Network's weights", LOSS_NET_MODEL_SIZE)
 		load_params(self.network['loss_net'], LOSS_NET_MODEL_FILE_PATH)
+
+	def feature_loss(self, out_layer, target_layer):
+		return T.mean(T.sqr(out_layer - target_layer))
+
+	def batched_gram(self, fmap):
+		fmap=fmap.flatten(ndim=3)
+		return T.batched_dot(fmap, fmap.dimshuffle(0,2,1))/T.prod(fmap.shape)
+
+	def style_loss(self, out_layer, target_layer):
+		return T.sum(T.sqr(batched_gram(out_layer) - batched_gram(target_layer)), axis=(1,2))
