@@ -87,6 +87,18 @@ class Network(object):
 			"Downloading the Loss Network's weights", LOSS_NET_MODEL_SIZE)
 		load_params(self.network['loss_net'], LOSS_NET_MODEL_FILE_PATH)
 
+	def setup_transform_net(input_var=None):
+		network = InputLayer(shape=(None, 3, 256, 256), input_var=input_var)
+		network = style_conv_block(network, 32, 9, 1)
+		network = style_conv_block(network, 64, 9, 2)
+		network = style_conv_block(network, 128, 9, 2)
+		for _ in range(5):
+			network = residual_block(network)
+		network = nn_upsample(network)
+		network = nn_upsample(network)
+		network = style_conv_block(network, 3, 9, 1, sigmoid)
+		return network
+
 	def feature_loss(self, out_layer, target_layer):
 		return T.mean(T.sqr(out_layer - target_layer))
 
