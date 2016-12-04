@@ -42,12 +42,17 @@ class Network(object):
 	LOSS_NET_DOWNLOAD_LINK = "TODO" + str(LOSS_NET_VERSION) + "TODO" + LOSS_NET_MODEL_FILE_NAME
 	LOSS_NET_MODEL_FILE_PATH = MODEL_PATH + LOSS_NET_MODEL_FILE_NAME
 
-	def __init__(self, **kwargs):
+	def __init__(self, input_var, **kwargs):
 		self.network = {}
-		self.network['loss_net'] = {}
-		self.network['_net'] = {}
 
-	def setup_loss_net(self, input_layer):
+		self.network['loss_net'] = {}
+		self.setup_loss_net(input_var)
+		self.load_loss_net_weights()
+
+		self.network['transform_net'] = {}
+		self.setup_transform_net(input_var)
+
+	def setup_loss_net(self, input_var):
 		"""
 		Create a network of convolution layers based on the VGG16 architecture from the paper:
 		"Very Deep Convolutional Networks for Large-Scale Image Recognition"
@@ -58,7 +63,7 @@ class Network(object):
 		Based on code in the Lasagne Recipes repository: https://github.com/Lasagne/Recipes
 		"""
 		loss_net = self.network['loss_net']
-		loss_net['input'] = input_layer
+		loss_net['input'] = InputLayer(shape=(None, 3, 256, 256), input_var=input_var)
 		loss_net['conv1_1'] = ConvLayer(loss_net['input'], 64, 3, pad=1, flip_filters=False)
 		loss_net['conv1_2'] = ConvLayer(loss_net['conv1_1'], 64, 3, pad=1, flip_filters=False)
 		loss_net['pool1'] = PoolLayer(loss_net['conv1_2'], 2)
@@ -83,16 +88,17 @@ class Network(object):
 		load_params(self.network['loss_net'], LOSS_NET_MODEL_FILE_PATH)
 
 	def setup_transform_net(input_var=None):
-		network = InputLayer(shape=(None, 3, 256, 256), input_var=input_var)
-		network = style_conv_block(network, 32, 9, 1)
-		network = style_conv_block(network, 64, 9, 2)
-		network = style_conv_block(network, 128, 9, 2)
+		transform_net = InputLayer(shape=(None, 3, 256, 256), input_var=input_var)
+		transform_net = style_conv_block(transform_net, 32, 9, 1)
+		transform_net = style_conv_block(transform_net, 64, 9, 2)
+		transform_net = style_conv_block(transform_net, 128, 9, 2)
 		for _ in range(5):
-			network = residual_block(network)
-		network = nn_upsample(network)
-		network = nn_upsample(network)
-		network = style_conv_block(network, 3, 9, 1, sigmoid)
-		return network
+			transform_net = residual_block(transform_net)
+		transform_net = nn_upsample(transform_net)
+		transform_net = nn_upsample(transform_net)
+		transform_net = style_conv_block(transform_net, 3, 9, 1, sigmoid)
+
+		self.network['transform_net'] = transform_net
 
 	def feature_loss(self, out_layer, target_layer):
 		return T.mean(T.sqr(out_layer - target_layer))
