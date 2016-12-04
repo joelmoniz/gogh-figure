@@ -32,11 +32,6 @@ from lasagne.layers import batch_norm, BatchNormLayer
 
 from utils import *
 
-def load_params(network, model_file):
-	with np.load(model_file) as f:
-		param_values = [f['arr_%d' % i] for i in range(len(f.files))]
-	lasagne.layers.set_all_param_values(network, param_values)
-
 class Network(object):
 
 	LOSS_NET_VERSION = 0.1

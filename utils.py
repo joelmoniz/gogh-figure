@@ -1,6 +1,8 @@
 import os
 from tqdm import tqdm
 import requests
+import numpy as np
+import lasagne
 
 def create_dir_if_not_exists(directory):
 	if not os.path.exists(directory):
@@ -24,3 +26,8 @@ def download(file_path, download_link, total_size):
 	with open(file_path, "wb") as handle:
 		for data in tqdm(response.iter_content(), total=total_size):
 			handle.write(data)
+
+def load_params(network, model_file):
+	with np.load(model_file) as f:
+		param_values = [f['arr_%d' % i] for i in range(len(f.files))]
+	lasagne.layers.set_all_param_values(network, param_values)
