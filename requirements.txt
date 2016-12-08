@@ -3,3 +3,4 @@ Theano==0.8.2
 git+https://github.com/Lasagne/Lasagne.git@9886da2#egg=Lasagne==0.2-dev
 tqdm
 requests
+opencv-python
