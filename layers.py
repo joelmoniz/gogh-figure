@@ -99,7 +99,7 @@ class ReflectLayer(lasagne.layers.Layer):
 
 # TODO: Add normalization
 def style_conv_block(conv_in, num_filters, filter_size, stride, nonlinearity=rectify):
-	sc_network = ReflectLayer(conv_in, filter_size/2)
+	sc_network = ReflectLayer(conv_in, filter_size//2)
 	sc_network = ConvLayer(sc_network, num_filters, filter_size, stride, nonlinearity=nonlinearity, W=Normal())
 	return sc_network
 
