@@ -31,6 +31,7 @@ def download(file_path, download_link, total_size):
 			handle.write(data)
 
 def load_params(network, model_file):
+	assert os.path.exists(model_file)
 	with np.load(model_file) as f:
 		param_values = [f['arr_%d' % i] for i in range(len(f.files))]
 	lasagne.layers.set_all_param_values(network, param_values)
@@ -45,6 +46,7 @@ def get_image(path, dim=None, grey=False, maintain_aspect=True, center=True):
 	:type dim: tuple
 	:param dim: The (height, width)
 	"""
+	assert os.path.exists(path)
 
 	if grey:
 		im = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
