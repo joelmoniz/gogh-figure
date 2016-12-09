@@ -31,12 +31,13 @@ from lasagne.nonlinearities import softmax, rectify, elu, sigmoid, tanh, softplu
 from lasagne.layers import batch_norm, BatchNormLayer
 
 from utils import *
+from layers import *
 
 class Network(object):
 
 	LOSS_NET_VERSION = 0.1
 
-	MODEL_PATH = './data/model/'
+	MODEL_PATH = __file__[:-1*__file__[::-1].index('/')] + 'data/model/'
 	LOSS_NET_MODEL_FILE_NAME = "vgg16_loss_net.npz"
 	LOSS_NET_MODEL_SIZE = 58863490
 	LOSS_NET_DOWNLOAD_LINK = "TODO" + str(LOSS_NET_VERSION) + "TODO" + LOSS_NET_MODEL_FILE_NAME
@@ -83,11 +84,11 @@ class Network(object):
 		loss_net['conv5_3'] = ConvLayer(loss_net['conv5_2'], 512, 3, pad=1, flip_filters=False)
 
 	def load_loss_net_weights(self):
-		download_if_not_exists(LOSS_NET_MODEL_FILE_PATH, LOSS_NET_DOWNLOAD_LINK, \
-			"Downloading the Loss Network's weights", LOSS_NET_MODEL_SIZE)
-		load_params(self.network['loss_net'], LOSS_NET_MODEL_FILE_PATH)
+		download_if_not_exists(self.LOSS_NET_MODEL_FILE_PATH, self.LOSS_NET_DOWNLOAD_LINK, \
+			"Downloading the Loss Network's weights", self.LOSS_NET_MODEL_SIZE)
+		load_params(self.network['loss_net']['conv5_3'], self.LOSS_NET_MODEL_FILE_PATH)
 
-	def setup_transform_net(input_var=None):
+	def setup_transform_net(self, input_var=None):
 		transform_net = InputLayer(shape=(None, 3, 256, 256), input_var=input_var)
 		transform_net = style_conv_block(transform_net, 32, 9, 1)
 		transform_net = style_conv_block(transform_net, 64, 9, 2)
