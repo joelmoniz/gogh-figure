@@ -105,11 +105,15 @@ class Network(object):
 		return T.mean(T.sqr(out_layer - target_layer))
 
 	def batched_gram(self, fmap):
-		# (batch, feature maps, height*width)
-		fmap=fmap.flatten(ndim=3)
+		# (layer, batch, featuremaps, height*width)
+		fmap=fmap.flatten(ndim=4)
+
+		# (layer*batch, featuremaps, height*width)
+		fmap2=fmap.reshape((-1, fmap.shape[-2], fmap.shape[-1]))
 
 		# The T.prod term can't be taken outside as a T.mean in style_loss(), since the width and height of the image might vary
-		return T.batched_dot(fmap, fmap.dimshuffle(0,2,1))/T.prod(fmap.shape[-2:])
+		return T.batched_dot(fmap2, fmap2.dimshuffle(0,2,1)).reshape(fmap.shape)/T.prod(fmap.shape[-2:])
 
 	def style_loss(self, out_layer, target_style_layer):
-		return T.mean(T.sum(T.sqr(batched_gram(out_layer) - T.tile(batched_gram(target_style_layer), (T.shape(out_layer)[0], 1, 1))), axis=(1,2)))
+		# Each input is a 5D tensor: (style loss layer, batch, feature map, height, width)
+		return T.mean(T.sum(T.sqr(batched_gram(out_layer) - T.tile(batched_gram(target_style_layer), (1, T.shape(out_layer)[0], 1, 1))), axis=(2,3)), axis=1)
