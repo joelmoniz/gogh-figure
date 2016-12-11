@@ -7,12 +7,15 @@ from cv2 import resize
 import cv2
 from scipy.misc import imsave
 
+def path_exists(path):
+	return os.path.exists(path)
+
 def create_dir_if_not_exists(directory):
-	if not os.path.exists(directory):
+	if not path_exists(directory):
 		os.makedirs(directory)
 
 def download_if_not_exists(file_path, download_link, message=None, total_size=None):
-	if os.path.exists(file_path):
+	if path_exists(file_path):
 		return
 
 	if message != None:
@@ -31,7 +34,7 @@ def download(file_path, download_link, total_size):
 			handle.write(data)
 
 def load_params(network, model_file):
-	assert os.path.exists(model_file)
+	assert path_exists(model_file)
 	with np.load(model_file) as f:
 		param_values = [f['arr_%d' % i] for i in range(len(f.files))]
 	lasagne.layers.set_all_param_values(network, param_values)
@@ -46,7 +49,7 @@ def get_image(path, dim=None, grey=False, maintain_aspect=True, center=True):
 	:type dim: tuple
 	:param dim: The (height, width)
 	"""
-	assert os.path.exists(path)
+	assert path_exists(path)
 
 	if grey:
 		im = cv2.imread(path, cv2.IMREAD_GRAYSCALE)
