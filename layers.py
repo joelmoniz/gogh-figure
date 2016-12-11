@@ -5,6 +5,7 @@ from lasagne.layers import InputLayer
 from lasagne.layers import NonlinearityLayer
 from lasagne.layers import ElemwiseSumLayer
 from lasagne.layers import ExpressionLayer
+from lasagne.layers import batch_norm
 from lasagne.layers import Pool2DLayer as PoolLayer
 from lasagne.layers import Conv2DLayer as ConvLayer
 from lasagne.init import Normal
@@ -98,9 +99,9 @@ class ReflectLayer(lasagne.layers.Layer):
 
 
 # TODO: Add normalization
-def style_conv_block(conv_in, num_filters, filter_size, stride, nonlinearity=rectify):
+def style_conv_block(conv_in, num_filters, filter_size, stride, nonlinearity=rectify, normalization=batch_norm):
 	sc_network = ReflectLayer(conv_in, filter_size//2)
-	sc_network = ConvLayer(sc_network, num_filters, filter_size, stride, nonlinearity=nonlinearity, W=Normal())
+	sc_network = normalization(ConvLayer(sc_network, num_filters, filter_size, stride, nonlinearity=nonlinearity, W=Normal()))
 	return sc_network
 
 def residual_block(resnet_in, num_filters=None, filter_size=3, stride=1):
