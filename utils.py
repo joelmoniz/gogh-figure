@@ -39,6 +39,9 @@ def load_params(network, model_file):
 		param_values = [f['arr_%d' % i] for i in range(len(f.files))]
 	lasagne.layers.set_all_param_values(network, param_values)
 
+def save_params(file_name, network):
+	np.savez(file_name, *lasagne.layers.get_all_param_values(network))
+
 def get_image(path, dim=None, grey=False, maintain_aspect=True, center=True):
 	"""
 	Given an image path, return a 3D numpy array with the image. Maintains aspect ratio and center crops the image to match dim.

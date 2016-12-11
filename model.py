@@ -36,27 +36,32 @@ from lasagne.layers import batch_norm, BatchNormLayer
 from utils import *
 from layers import *
 
+try:
+	REPO_DIR = __file__[:-1*__file__[::-1].index('/')]
+except Exception, e:
+	REPO_DIR = './'
+
 class Network(object):
 
 	LOSS_NET_VERSION = 0.1
 
-	MODEL_PATH = __file__[:-1*__file__[::-1].index('/')] + 'data/model/'
+	MODEL_PATH = REPO_DIR + 'data/model/'
 	LOSS_NET_MODEL_FILE_NAME = "vgg16_loss_net.npz"
 	LOSS_NET_MODEL_SIZE = 58863490
 	LOSS_NET_DOWNLOAD_LINK = "TODO" + str(LOSS_NET_VERSION) + "TODO" + LOSS_NET_MODEL_FILE_NAME
 	LOSS_NET_MODEL_FILE_PATH = MODEL_PATH + LOSS_NET_MODEL_FILE_NAME
 
-	def __init__(self, input_var, **kwargs):
+	def __init__(self, input_var=None, **kwargs):
 		self.network = {}
 
 		self.network['loss_net'] = {}
-		self.setup_loss_net(input_var)
+		self.setup_loss_net()
 		self.load_loss_net_weights()
 
 		self.network['transform_net'] = {}
 		self.setup_transform_net(input_var)
 
-	def setup_loss_net(self, input_var):
+	def setup_loss_net(self):
 		"""
 		Create a network of convolution layers based on the VGG16 architecture from the paper:
 		"Very Deep Convolutional Networks for Large-Scale Image Recognition"
@@ -67,7 +72,7 @@ class Network(object):
 		Based on code in the Lasagne Recipes repository: https://github.com/Lasagne/Recipes
 		"""
 		loss_net = self.network['loss_net']
-		loss_net['input'] = InputLayer(shape=(None, 3, 256, 256), input_var=input_var)
+		loss_net['input'] = InputLayer(shape=(None, 3, 256, 256))
 		loss_net['conv1_1'] = ConvLayer(loss_net['input'], 64, 3, pad=1, flip_filters=False)
 		loss_net['conv1_2'] = ConvLayer(loss_net['conv1_1'], 64, 3, pad=1, flip_filters=False)
 		loss_net['pool1'] = PoolLayer(loss_net['conv1_2'], 2)
@@ -166,3 +171,97 @@ class CocoData(object):
 
 	def get_valid_batch(self):
 		return self.iterate_minibatches(self.dataset['val2014']['images'], self.valid_batchsize, False)
+
+
+def train():
+	# TODO: These should be user accpeted:
+	DEBUG = True
+	STYLE_LOSS_LAYERS = {'conv1_2': 1e-4,'conv2_2': 1e-4,'conv3_3': 1e-4,'conv4_3': 1e-4}
+	CONTENT_LOSS_LAYER = 'conv3_3'
+	NUM_EPOCHS = 8 # 40k steps is around 8 epochs
+	STYLE_IMAGE_LOCATION = REPO_DIR + 'data/images/styles/candy.jpg'
+
+	image_var = T.tensor4('inputs')
+	pastiche_content_var = T.tensor4('pastiche_content')
+	style_var = T.TensorType(theano.config.floatX,(False,)*5) ('style')
+	pastiche_style_var = T.TensorType(theano.config.floatX,(False,)*5) ('pastiche_style')
+
+	print('Loading Networks...')
+	net = Network(image_var)
+	data = CocoData()
+
+	print('Compiling Functions...')
+	# initialize transformer network function
+	transform_pastiche_out = lasagne.layers.get_output(net.network['transform_net'])
+	pastiche_transform_fn = theano.function([image_var], transform_pastiche_out)
+
+	# initialize loss network related functions
+	style_loss_layer_keys = STYLE_LOSS_LAYERS.keys()
+	style_loss_layer_weights = [STYLE_LOSS_LAYERS[w] for w in style_loss_layer_keys]
+
+	if CONTENT_LOSS_LAYER in style_loss_layer_keys:
+		vgg_all_out = lasagne.layers.get_output([net.network['loss_net'][x] for x in style_loss_layer_keys], transform_pastiche_out)
+		vgg_pastiche_style_out = vgg_all_out
+		vgg_pastiche_content_out = vgg_all_out[style_loss_layer_keys.index(CONTENT_LOSS_LAYER)]
+	else:
+		vgg_all_out = lasagne.layers.get_output([net.network['loss_net'][x] for x in style_loss_layer_keys+[CONTENT_LOSS_LAYER]], transform_pastiche_out)
+		vgg_pastiche_style_out = vgg_all_out[:-1]
+		vgg_pastiche_content_out = vgg_all_out[-1]
+	vgg_style_out = lasagne.layers.get_output([net.network['loss_net'][x] for x in style_loss_layer_keys], image_var)
+	vgg_content_out = lasagne.layers.get_output(net.network['loss_net'][CONTENT_LOSS_LAYER], image_var)
+
+	style_image_vgg_fn = theano.function([image_var], vgg_style_out)
+	content_image_vgg_fn = theano.function([image_var], vgg_content_out)
+	# pastiche_vgg_fn = theano.function([image_var], vgg_all_out)
+
+	# Get the VGG16 Loss Network's representaion of the style image
+	style_im = np.expand_dims(get_image(STYLE_IMAGE_LOCATION, (256, 256)), 0)
+	vgg_style_values = style_image_vgg_fn(style_im)
+
+	# Initialize loss functions
+	loss = net.feature_loss(vgg_pastiche_content_out, vgg_content_out)
+	for pso, vsv, sllw in zip(vgg_pastiche_style_out, vgg_style_values, style_loss_layer_weights):
+		loss += net.style_loss(pso, theano.shared(vsv))*sllw
+
+	params = lasagne.layers.get_all_params(net.network['transform_net'], trainable=True)
+	updates = lasagne.updates.adam(loss, params)
+	train_fn = theano.function([image_var], loss, updates=updates)
+	# TODO: If using conditional instance norm, make this deterministic
+	valid_fn = theano.function([image_var], loss)
+
+	if DEBUG:
+		isFirst = True
+		for content_ims in data.get_valid_batch():
+			if isFirst:
+				save_params('data/model/trained/e0.npz', net.network['transform_net'])
+				save_im('data/debug/e0.jpg', content_ims)
+				isFirst = False
+
+	print('Commencing Training...')
+	# For each epoch
+	for epoch in range(NUM_EPOCHS):
+
+		train_err = 0
+		valid_err = 0
+		train_batch_num = 0
+		valid_batch_num = 0
+		start_time = time.time()
+
+		for content_ims in data.get_train_batch():
+			train_err += train_fn(content_ims)
+			train_batch_num += 1
+
+		for content_ims in data.get_valid_batch():
+			if DEBUG and valid_batch_num == 0:
+				save_params('data/model/trained/e' + str(epoch) + '.npz', net.network['transform_net'])
+				save_im('data/debug/e' + str(epoch) + '.jpg', content_ims)
+			valid_err += valid_fn(content_ims)
+			valid_batch_num += 1
+
+		print("Epoch {} of {} took {:.3f}s".format(
+			epoch + 1, NUM_EPOCHS, time.time() - start_time))
+		print("  training loss:\t\t{:.6f}".format(train_err / train_batch_num))
+		print("  valid loss:\t\t{:.6f}".format(valid_err / valid_batch_num))
+
+if __name__ == '__main__':
+	train()
