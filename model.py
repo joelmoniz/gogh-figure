@@ -234,7 +234,8 @@ def train():
 		for content_ims in data.get_valid_batch():
 			if isFirst:
 				save_params(REPO_DIR + 'data/model/trained/e0.npz', net.network['transform_net'])
-				save_im(REPO_DIR + 'data/debug/e0.jpg', content_ims)
+				save_im(REPO_DIR + 'data/debug/orig.jpg', content_ims)
+				save_im(REPO_DIR + 'data/debug/e0.jpg', pastiche_transform_fn(content_ims))
 				isFirst = False
 
 	print('Commencing Training...')
@@ -251,13 +252,17 @@ def train():
 			train_err += train_fn(content_ims)
 			train_batch_num += 1
 
+			if DEBUG and train_batch_num%1000 == 0:
+				print('.', end="", flush=True)
+
 		for content_ims in data.get_valid_batch():
 			if DEBUG and valid_batch_num == 0:
 				save_params(REPO_DIR + 'data/model/trained/e' + str(epoch) + '.npz', net.network['transform_net'])
-				save_im(REPO_DIR + 'data/debug/e' + str(epoch) + '.jpg', content_ims)
+				save_im(REPO_DIR + 'data/debug/e' + str(epoch) + '.jpg', pastiche_transform_fn(content_ims))
 			valid_err += valid_fn(content_ims)
 			valid_batch_num += 1
 
+		print('')
 		print("Epoch {} of {} took {:.3f}s".format(
 			epoch + 1, NUM_EPOCHS, time.time() - start_time))
 		print("  training loss:\t\t{:.6f}".format(train_err / train_batch_num))
