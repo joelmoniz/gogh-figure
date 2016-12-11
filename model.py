@@ -233,8 +233,8 @@ def train():
 		isFirst = True
 		for content_ims in data.get_valid_batch():
 			if isFirst:
-				save_params('data/model/trained/e0.npz', net.network['transform_net'])
-				save_im('data/debug/e0.jpg', content_ims)
+				save_params(REPO_DIR + 'data/model/trained/e0.npz', net.network['transform_net'])
+				save_im(REPO_DIR + 'data/debug/e0.jpg', content_ims)
 				isFirst = False
 
 	print('Commencing Training...')
@@ -253,8 +253,8 @@ def train():
 
 		for content_ims in data.get_valid_batch():
 			if DEBUG and valid_batch_num == 0:
-				save_params('data/model/trained/e' + str(epoch) + '.npz', net.network['transform_net'])
-				save_im('data/debug/e' + str(epoch) + '.jpg', content_ims)
+				save_params(REPO_DIR + 'data/model/trained/e' + str(epoch) + '.npz', net.network['transform_net'])
+				save_im(REPO_DIR + 'data/debug/e' + str(epoch) + '.jpg', content_ims)
 			valid_err += valid_fn(content_ims)
 			valid_batch_num += 1
 
