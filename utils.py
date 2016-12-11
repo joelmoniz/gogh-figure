@@ -104,5 +104,9 @@ def save_im(file_name, im):
 	"""
 	Saves an image in (channel, height, width) format.
 	"""
-	imsave(file_name, im.transpose(1, 2, 0))
+	assert len(im.shape) == 4 or len(im.shape) == 3
+	if len(im.shape) == 4:
+		imsave(file_name, im[0].transpose(1, 2, 0))
+	else:
+		imsave(file_name, im.transpose(1, 2, 0))
 
