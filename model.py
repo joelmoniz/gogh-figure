@@ -164,7 +164,7 @@ class CocoData(object):
 			else:
 				excerpt = slice(start_idx, start_idx + batchsize)
 
-			yield inputs[excerpt]
+			yield inputs[excerpt]/255.
 
 	def get_train_batch(self):
 		return self.iterate_minibatches(self.dataset['train2014']['images'], self.train_batchsize, True)
@@ -253,7 +253,7 @@ def train():
 			train_batch_num += 1
 
 			if DEBUG and train_batch_num%1000 == 0:
-				print('.', end="", flush=True)
+				print('.', end="")
 
 		for content_ims in data.get_valid_batch():
 			if DEBUG and valid_batch_num == 0:
