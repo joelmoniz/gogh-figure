@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 from __future__ import print_function
 
 import sys
@@ -164,7 +165,7 @@ class CocoData(object):
 			else:
 				excerpt = slice(start_idx, start_idx + batchsize)
 
-			yield inputs[excerpt]/255.
+			yield (inputs[excerpt]/255.).astype(theano.config.floatX)
 
 	def get_train_batch(self):
 		return self.iterate_minibatches(self.dataset['train2014']['images'], self.train_batchsize, True)
@@ -172,10 +173,14 @@ class CocoData(object):
 	def get_valid_batch(self):
 		return self.iterate_minibatches(self.dataset['val2014']['images'], self.valid_batchsize, False)
 
+	def get_first_valid_batch(self):
+		return (self.dataset['val2014']['images'][:self.valid_batchsize]/255.).astype(theano.config.floatX)
+
 
 def train():
 	# TODO: These should be user accpeted:
 	DEBUG = True
+	VALIDATE = False
 	STYLE_LOSS_LAYERS = {'conv1_2': 1e-4,'conv2_2': 1e-4,'conv3_3': 1e-4,'conv4_3': 1e-4}
 	CONTENT_LOSS_LAYER = 'conv3_3'
 	NUM_EPOCHS = 8 # 40k steps is around 8 epochs
@@ -230,13 +235,10 @@ def train():
 	valid_fn = theano.function([image_var], loss)
 
 	if DEBUG:
-		isFirst = True
-		for content_ims in data.get_valid_batch():
-			if isFirst:
-				save_params(REPO_DIR + 'data/model/trained/e0.npz', net.network['transform_net'])
-				save_im(REPO_DIR + 'data/debug/orig.jpg', content_ims)
-				save_im(REPO_DIR + 'data/debug/e0.jpg', pastiche_transform_fn(content_ims))
-				isFirst = False
+		content_ims = data.get_first_valid_batch()
+		save_params(REPO_DIR + 'data/model/trained/e0.npz', net.network['transform_net'])
+		save_im(REPO_DIR + 'data/debug/orig.jpg', content_ims)
+		save_im(REPO_DIR + 'data/debug/e0.jpg', pastiche_transform_fn(content_ims))
 
 	print('Commencing Training...')
 	# For each epoch
@@ -252,21 +254,23 @@ def train():
 			train_err += train_fn(content_ims)
 			train_batch_num += 1
 
-			if DEBUG and train_batch_num%1000 == 0:
-				print('.', end="")
+			if DEBUG and train_batch_num%100 == 0:
+				print("Batch " + str(train_batch_num) + ":\t{:.6f}".format(train_err / train_batch_num))
+				save_im(REPO_DIR + 'data/debug/im/e' + str(epoch + 1) + 'b' + str(train_batch_num) + '.jpg', pastiche_transform_fn(data.get_first_valid_batch()))
 
-		for content_ims in data.get_valid_batch():
-			if DEBUG and valid_batch_num == 0:
-				save_params(REPO_DIR + 'data/model/trained/e' + str(epoch) + '.npz', net.network['transform_net'])
-				save_im(REPO_DIR + 'data/debug/e' + str(epoch) + '.jpg', pastiche_transform_fn(content_ims))
-			valid_err += valid_fn(content_ims)
-			valid_batch_num += 1
+		save_params(REPO_DIR + 'data/model/trained/e' + str(epoch + 1) + '.npz', net.network['transform_net'])
+		if VALIDATE:
+			for content_ims in data.get_valid_batch():
+				if DEBUG and valid_batch_num == 0:
+					save_im(REPO_DIR + 'data/debug/e' + str(epoch + 1) + 'v.jpg', pastiche_transform_fn(content_ims))
+				valid_err += valid_fn(content_ims)
+				valid_batch_num += 1
 
-		print('')
 		print("Epoch {} of {} took {:.3f}s".format(
 			epoch + 1, NUM_EPOCHS, time.time() - start_time))
 		print("  training loss:\t\t{:.6f}".format(train_err / train_batch_num))
-		print("  valid loss:\t\t{:.6f}".format(valid_err / valid_batch_num))
+		if VALIDATE:
+			print("  valid loss:\t\t{:.6f}".format(valid_err / valid_batch_num))
 
 if __name__ == '__main__':
 	train()
