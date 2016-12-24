@@ -76,6 +76,22 @@ def get_image(path, dim=None, grey=False, maintain_aspect=True, center=True):
 	im = im.transpose(2, 0, 1)
 	return im
 
+def get_images(path, dim=(256, 256), grey=False, **kwargs):
+	"""
+	Given a folder, return a 4D numpy array with all images in the folder
+	"""
+	ims_paths = [im_path for im_path in os.listdir(path) if os.path.isfile(im_path)]
+
+	if grey:
+		ims = np.zeros((len(ims_paths), 1, dim[0], dim[1]), dtype='float32')
+	else:
+		ims = np.zeros((len(ims_paths), 3, dim[0], dim[1]), dtype='float32')
+
+	for i, im_path in enumerate(ims_paths):
+		ims[i] = get_image(im_path, dim, grey, **kwargs)
+
+	return ims
+
 def resize_maintain_aspect(im, dim):
 	"""
 	Resize an image while maintaining its aspect ratio. Resizes the smaller side of the image
@@ -113,3 +129,7 @@ def save_im(file_name, im):
 	else:
 		imsave(file_name, im.transpose(1, 2, 0))
 
+def save_ims(folder_name, ims):
+	create_dir_if_not_exists(folder_name)
+	for i, im in enumerate(ims):
+		save_im(folder_name + '/im' + str(i) + '.jpg', im)
