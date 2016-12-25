@@ -278,5 +278,34 @@ def train():
 		if VALIDATE:
 			print("  valid loss:\t\t{:.6f}".format(valid_err / valid_batch_num))
 
+def stylize():
+	# TODO: These should be user accpeted:
+	INPUT_LOCATION = 'testims/'
+	OUTPUT_LOCATION = 'testims_out128/'
+	MODEL_FILE = 'e2.npz'
+	shape = (256, 256)
+
+	image_var = T.tensor4('inputs')
+
+	print('Loading Networks...')
+	net = Network(image_var, shape)
+	load_params(net.network['transform_net'], MODEL_FILE)
+
+	print('Loading Images...')
+	ims = get_images(INPUT_LOCATION, shape)
+
+	print('Compiling Functions...')
+	# initialize transformer network function
+	transform_pastiche_out = lasagne.layers.get_output(net.network['transform_net'])
+	pastiche_transform_fn = theano.function([image_var], transform_pastiche_out)
+
+	print('Transforming images...')
+	out_ims = pastiche_transform_fn(ims)
+
+	print('Saving images...')
+	save_ims(OUTPUT_LOCATION, out_ims)
+
+	print('Done.')
+
 if __name__ == '__main__':
 	train()
