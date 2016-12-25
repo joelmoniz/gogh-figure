@@ -52,8 +52,14 @@ class Network(object):
 	LOSS_NET_DOWNLOAD_LINK = "TODO" + str(LOSS_NET_VERSION) + "TODO" + LOSS_NET_MODEL_FILE_NAME
 	LOSS_NET_MODEL_FILE_PATH = MODEL_PATH + LOSS_NET_MODEL_FILE_NAME
 
-	def __init__(self, input_var=None, **kwargs):
+	def __init__(self, input_var=None, shape=(None, 3, 256, 256), **kwargs):
 		self.network = {}
+
+		if len(shape) == 2:
+			shape=(None, 3, shape[0], shape[1])
+		elif len(shape) == 3:
+			shape=(None, shape[0], shape[1], shape[2])
+		self.shape = shape
 
 		self.network['loss_net'] = {}
 		self.setup_loss_net()
@@ -73,7 +79,7 @@ class Network(object):
 		Based on code in the Lasagne Recipes repository: https://github.com/Lasagne/Recipes
 		"""
 		loss_net = self.network['loss_net']
-		loss_net['input'] = InputLayer(shape=(None, 3, 256, 256))
+		loss_net['input'] = InputLayer(shape=self.shape)
 		loss_net['conv1_1'] = ConvLayer(loss_net['input'], 64, 3, pad=1, flip_filters=False)
 		loss_net['conv1_2'] = ConvLayer(loss_net['conv1_1'], 64, 3, pad=1, flip_filters=False)
 		loss_net['pool1'] = PoolLayer(loss_net['conv1_2'], 2)
@@ -98,7 +104,7 @@ class Network(object):
 		load_params(self.network['loss_net']['conv5_3'], self.LOSS_NET_MODEL_FILE_PATH)
 
 	def setup_transform_net(self, input_var=None):
-		transform_net = InputLayer(shape=(None, 3, 256, 256), input_var=input_var)
+		transform_net = InputLayer(shape=self.shape, input_var=input_var)
 		transform_net = style_conv_block(transform_net, 32, 9, 1)
 		transform_net = style_conv_block(transform_net, 64, 9, 2)
 		transform_net = style_conv_block(transform_net, 128, 9, 2)
