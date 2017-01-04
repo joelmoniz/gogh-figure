@@ -2,14 +2,18 @@ import theano
 import theano.tensor as T
 import lasagne
 from lasagne.layers import InputLayer
+from lasagne.layers import Layer
 from lasagne.layers import NonlinearityLayer
 from lasagne.layers import ElemwiseSumLayer
 from lasagne.layers import ExpressionLayer
+from lasagne.layers import BatchNormLayer
 from lasagne.layers import batch_norm
 from lasagne.layers import Pool2DLayer as PoolLayer
 from lasagne.layers import Conv2DLayer as ConvLayer
 from lasagne.init import Normal
-from lasagne.nonlinearities import linear, rectify, sigmoid
+from lasagne.nonlinearities import linear, rectify, sigmoid, identity
+
+import numpy as np
 
 class ReflectLayer(lasagne.layers.Layer):
 	"""
@@ -97,6 +101,31 @@ class ReflectLayer(lasagne.layers.Layer):
 
 		return out
 
+def instanceNormLayer(layer, **kwargs):
+	axes = (2,3)
+	num_batches, num_fms = lasagne.layers.get_output_shape(layer)[:2]
+	beta = T.tile(theano.shared(np.zeros((num_fms), dtype=theano.config.floatX)), (num_batches, 1))
+	gamma = T.tile(theano.shared(np.ones((num_fms), dtype=theano.config.floatX)), (num_batches, 1))
+	return BatchNormLayer(layer, axes=(2, 3), beta=beta, gamma=gamma, **kwargs)
+
+def instance_norm(layer, **kwargs):
+	"""
+	The equivalent of Lasagne's `batch_norm()` convenience method, but for instance normalization.
+	Refer: http://lasagne.readthedocs.io/en/latest/modules/layers/normalization.html#lasagne.layers.batch_norm
+	"""
+	nonlinearity = getattr(layer, 'nonlinearity', None)
+	if nonlinearity is not None:
+		layer.nonlinearity = identity
+	if hasattr(layer, 'b') and layer.b is not None:
+		del layer.params[layer.b]
+		layer.b = None
+	bn_name = (kwargs.pop('name', None) or
+			   (getattr(layer, 'name', None) and layer.name + '_bn'))
+	layer = instanceNormLayer(layer, name=bn_name, **kwargs)
+	if nonlinearity is not None:
+		nonlin_name = bn_name and bn_name + '_nonlin'
+		layer = NonlinearityLayer(layer, nonlinearity, name=nonlin_name)
+	return layer
 
 # TODO: Add normalization
 def style_conv_block(conv_in, num_filters, filter_size, stride, nonlinearity=rectify, normalization=batch_norm):
