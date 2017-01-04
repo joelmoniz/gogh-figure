@@ -76,6 +76,9 @@ def get_image(path, dim=None, grey=False, maintain_aspect=True, center=True):
 	im = im.transpose(2, 0, 1)
 	return im
 
+def get_image_as_batch(path, **kwargs):
+	return np.expand_dims(get_image(path, **kwargs), axis=0)
+
 def get_images(path, dim=(256, 256), grey=False, **kwargs):
 	"""
 	Given a folder, return a 4D numpy array with all images in the folder
