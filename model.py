@@ -52,7 +52,11 @@ class Network(object):
 	LOSS_NET_DOWNLOAD_LINK = "TODO" + str(LOSS_NET_VERSION) + "TODO" + LOSS_NET_MODEL_FILE_NAME
 	LOSS_NET_MODEL_FILE_PATH = MODEL_PATH + LOSS_NET_MODEL_FILE_NAME
 
-	def __init__(self, input_var=None, shape=(None, 3, 256, 256), **kwargs):
+	def __init__(self, input_var=None, shape=(None, 3, 256, 256), net_type=0, **kwargs):
+		"""
+		net_type: 0 (fast neural style- fns) or 1 (conditional instance norm- cin)
+		"""
+		assert net_type in [0, 1]
 		self.network = {}
 
 		if len(shape) == 2:
@@ -67,6 +71,7 @@ class Network(object):
 
 		self.network['transform_net'] = {}
 		self.setup_transform_net(input_var)
+		self.net_type = net_type
 
 	def setup_loss_net(self):
 		"""
@@ -112,7 +117,12 @@ class Network(object):
 			transform_net = residual_block(transform_net)
 		transform_net = nn_upsample(transform_net)
 		transform_net = nn_upsample(transform_net)
-		transform_net = style_conv_block(transform_net, 3, 9, 1, sigmoid)
+
+		if self.net_type == 0:
+			transform_net = style_conv_block(transform_net, 3, 9, 1, tanh)
+			transform_net = ExpressionLayer(transform_net, lambda X: 150.*X, output_shape=None)
+		elif self.net_type == 1:
+			transform_net = style_conv_block(transform_net, 3, 9, 1, sigmoid)
 
 		self.network['transform_net'] = transform_net
 
@@ -138,7 +148,10 @@ class Network(object):
 		fmap=fmap.flatten(ndim=3)
 
 		# The T.prod term can't be taken outside as a T.mean in style_loss(), since the width and height of the image might vary
-		return T.batched_dot(fmap, fmap.dimshuffle(0,2,1))/T.prod(fmap.shape[-2:])
+		if self.net_type == 0:
+			return T.batched_dot(fmap, fmap.dimshuffle(0,2,1))/T.prod(fmap.shape[-2:])
+		elif self.net_type == 1:
+			return T.batched_dot(fmap, fmap.dimshuffle(0,2,1))/T.prod(fmap.shape[-1])
 
 	def style_loss(self, out_layer, target_style_layer):
 		# Each input is a 4D tensor: (batch, feature map, height, width)
