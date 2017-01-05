@@ -6,6 +6,7 @@ import lasagne
 from cv2 import resize
 import cv2
 from scipy.misc import imsave
+from shutil import copy
 
 def path_exists(path):
 	return os.path.exists(path)
@@ -13,6 +14,12 @@ def path_exists(path):
 def create_dir_if_not_exists(directory):
 	if not path_exists(directory):
 		os.makedirs(directory)
+
+def copy_file_if_not_exists(source_file, dest_dir):
+	if path_exists(dest_dir + '/' + source_file.split('/')[-1]):
+		return
+	create_dir_if_not_exists(dest_dir)
+	copy(source_file, dest_dir)
 
 def download_if_not_exists(file_path, download_link, message=None, total_size=None):
 	if path_exists(file_path):
