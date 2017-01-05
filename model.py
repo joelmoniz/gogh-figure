@@ -144,6 +144,10 @@ class Network(object):
 		# Each input is a 4D tensor: (batch, feature map, height, width)
 		return T.mean(T.sqr(self.batched_gram(out_layer) - T.tile(self.batched_gram(target_style_layer), (T.shape(out_layer)[0], 1, 1))))
 
+	def total_variation_loss(self, x):
+		# https://github.com/alexjc/neural-enhance/blob/master/enhance.py#L408-L409
+		return T.mean(((x[:,:,:-1,:-1] - x[:,:,1:,:-1])**2 + (x[:,:,:-1,:-1] - x[:,:,:-1,1:])**2)**1.25)
+
 class CocoData(object):
 
 	PREPARE_COCO_SCRIPT_NAME = ''
