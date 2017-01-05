@@ -142,7 +142,7 @@ class Network(object):
 
 	def style_loss(self, out_layer, target_style_layer):
 		# Each input is a 4D tensor: (batch, feature map, height, width)
-		return T.mean(T.sum(T.sqr(self.batched_gram(out_layer) - T.tile(self.batched_gram(target_style_layer), (T.shape(out_layer)[0], 1, 1))), axis=(1,2)), axis=0)
+		return T.mean(T.sqr(self.batched_gram(out_layer) - T.tile(self.batched_gram(target_style_layer), (T.shape(out_layer)[0], 1, 1))))
 
 class CocoData(object):
 
