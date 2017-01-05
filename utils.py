@@ -132,7 +132,7 @@ def save_im(file_name, im):
 	else:
 		imsave(file_name, im.transpose(1, 2, 0))
 
-def save_ims(folder_name, ims):
+def save_ims(folder_name, ims, prefix='im'):
 	create_dir_if_not_exists(folder_name)
 	for i, im in enumerate(ims):
-		save_im(folder_name + '/im' + str(i) + '.jpg', im)
+		save_im(folder_name + '/' + prefix + str(i) + '.jpg', im)
