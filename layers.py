@@ -10,7 +10,7 @@ from lasagne.layers import BatchNormLayer
 from lasagne.layers import batch_norm
 from lasagne.layers import Pool2DLayer as PoolLayer
 from lasagne.layers import Conv2DLayer as ConvLayer
-from lasagne.init import Normal
+from lasagne.init import Normal, Constant
 from lasagne.nonlinearities import linear, rectify, sigmoid, identity
 
 import numpy as np
@@ -101,12 +101,44 @@ class ReflectLayer(lasagne.layers.Layer):
 
 		return out
 
-def instanceNormLayer(layer, **kwargs):
-	axes = (2,3)
-	num_batches, num_fms = lasagne.layers.get_output_shape(layer)[:2]
-	beta = T.tile(theano.shared(np.zeros((num_fms), dtype=theano.config.floatX)), (num_batches, 1))
-	gamma = T.tile(theano.shared(np.ones((num_fms), dtype=theano.config.floatX)), (num_batches, 1))
-	return BatchNormLayer(layer, axes=(2, 3), beta=beta, gamma=gamma, **kwargs)
+class InstanceNormLayer(Layer):
+	"""
+	An implementation of Instance Normalization, based on lasagne's BatchNormLayer.
+	Note that unlike the fns implementation, which uses 1e-5 as epsilon (the torch default),
+	this implementation uses 1e-4 as epsilon (the lasagne default).
+	"""
+	def __init__(self, incoming, epsilon=1e-4,
+				 beta=Constant(0), gamma=Constant(1), **kwargs):
+		super(InstanceNormLayer, self).__init__(incoming, **kwargs)
+
+		self.axes = (2, 3)
+		self.epsilon = epsilon
+		shape = (self.input_shape[1])
+
+		if beta is None:
+			self.beta = None
+		else:
+			self.beta = self.add_param(beta, shape, 'beta',
+									   trainable=True, regularizable=False)
+		if gamma is None:
+			self.gamma = None
+		else:
+			self.gamma = self.add_param(gamma, shape, 'gamma',
+										trainable=True, regularizable=True)
+
+	def get_output_for(self, input, **kwargs):
+
+		mean = input.mean(self.axes)
+		inv_std = T.inv(T.sqrt(input.var(self.axes) + self.epsilon))
+
+		beta = 0 if self.beta is None else self.beta.dimshuffle(['x', 0, 'x', 'x'])
+		gamma = 1 if self.gamma is None else self.gamma.dimshuffle(['x', 0, 'x', 'x'])
+		mean = mean.dimshuffle([0, 1, 'x', 'x'])
+		inv_std = inv_std.dimshuffle([0, 1, 'x', 'x'])
+
+		# normalize
+		normalized = (input - mean) * (gamma * inv_std) + beta
+		return normalized
 
 def instance_norm(layer, **kwargs):
 	"""
@@ -121,7 +153,7 @@ def instance_norm(layer, **kwargs):
 		layer.b = None
 	bn_name = (kwargs.pop('name', None) or
 			   (getattr(layer, 'name', None) and layer.name + '_bn'))
-	layer = instanceNormLayer(layer, name=bn_name, **kwargs)
+	layer = InstanceNormLayer(layer, name=bn_name, **kwargs)
 	if nonlinearity is not None:
 		nonlin_name = bn_name and bn_name + '_nonlin'
 		layer = NonlinearityLayer(layer, nonlinearity, name=nonlin_name)
