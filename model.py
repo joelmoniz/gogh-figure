@@ -57,6 +57,7 @@ class Network(object):
 		net_type: 0 (fast neural style- fns) or 1 (conditional instance norm- cin)
 		"""
 		assert net_type in [0, 1]
+		self.net_type = net_type
 		self.network = {}
 
 		if len(shape) == 2:
@@ -71,7 +72,6 @@ class Network(object):
 
 		self.network['transform_net'] = {}
 		self.setup_transform_net(input_var)
-		self.net_type = net_type
 
 	def setup_loss_net(self):
 		"""

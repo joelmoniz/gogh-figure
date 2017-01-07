@@ -113,7 +113,7 @@ class InstanceNormLayer(Layer):
 
 		self.axes = (2, 3)
 		self.epsilon = epsilon
-		shape = (self.input_shape[1])
+		shape = (self.input_shape[1],)
 
 		if beta is None:
 			self.beta = None
