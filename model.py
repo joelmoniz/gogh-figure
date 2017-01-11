@@ -222,10 +222,15 @@ def train():
 	# TODO: These should be user accpeted:
 	DEBUG = True
 	VALIDATE = False
-	STYLE_LOSS_LAYERS = {'conv1_2': 1e-4,'conv2_2': 1e-4,'conv3_3': 1e-4,'conv4_3': 1e-4}
-	CONTENT_LOSS_LAYER = 'conv3_3'
-	NUM_EPOCHS = 8 # 40k steps is around 8 epochs
+	STYLE_LOSS_LAYERS = {'conv1_2': 20.,'conv2_2': 20.,'conv3_3': 20.,'conv4_3': 20.}
+	TOTAL_VARIATION_LOSS_WEIGHT = 1e-6
+	CONTENT_LOSS_LAYER = 'conv2_2'
+	NUM_EPOCHS = 2 # 40k steps is around 8 epochs
 	STYLE_IMAGE_LOCATION = REPO_DIR + 'data/images/styles/candy.jpg'
+	FOLDER_SUFFIX = 'jc_s5_ve-6_i_candy'
+
+	create_dir_if_not_exists(REPO_DIR + 'data/model/trained_' + FOLDER_SUFFIX)
+	create_dir_if_not_exists(REPO_DIR + 'data/debug/im_' + FOLDER_SUFFIX)
 
 	image_var = T.tensor4('inputs')
 	pastiche_content_var = T.tensor4('pastiche_content')
@@ -234,7 +239,9 @@ def train():
 
 	print('Loading Networks...')
 	net = Network(image_var)
-	data = CocoData()
+
+	print('Loading Data...')
+	data = CocoData(train_batchsize=4)
 
 	print('Compiling Functions...')
 	# initialize transformer network function
@@ -243,7 +250,7 @@ def train():
 
 	# initialize loss network related functions
 	style_loss_layer_keys = STYLE_LOSS_LAYERS.keys()
-	style_loss_layer_weights = [STYLE_LOSS_LAYERS[w] for w in style_loss_layer_keys]
+	style_loss_layer_weights = [STYLE_LOSS_LAYERS[w]/(1.0*len(style_loss_layer_keys)) for w in style_loss_layer_keys]
 
 	if CONTENT_LOSS_LAYER in style_loss_layer_keys:
 		vgg_all_out = lasagne.layers.get_output([net.network['loss_net'][x] for x in style_loss_layer_keys], transform_pastiche_out)
