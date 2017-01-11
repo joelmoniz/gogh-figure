@@ -160,7 +160,7 @@ def instance_norm(layer, **kwargs):
 	return layer
 
 # TODO: Add normalization
-def style_conv_block(conv_in, num_filters, filter_size, stride, nonlinearity=rectify, normalization=batch_norm):
+def style_conv_block(conv_in, num_filters, filter_size, stride, nonlinearity=rectify, normalization=instance_norm):
 	sc_network = ReflectLayer(conv_in, filter_size//2)
 	sc_network = normalization(ConvLayer(sc_network, num_filters, filter_size, stride, nonlinearity=nonlinearity, W=Normal()))
 	return sc_network

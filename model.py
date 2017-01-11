@@ -177,6 +177,8 @@ class CocoData(object):
 		self.train_batchsize = train_batchsize
 		self.valid_batchsize = valid_batchsize
 
+		self.vgg_mean = [103.939, 116.779, 123.68]
+
 	def iterate_minibatches(self, inputs, batchsize, shuffle=False):
 		if shuffle:
 			indices = np.arange(len(inputs))
@@ -188,7 +190,23 @@ class CocoData(object):
 			else:
 				excerpt = slice(start_idx, start_idx + batchsize)
 
-			yield (inputs[excerpt]/255.).astype(theano.config.floatX)
+			yield self.preprocess_vgg(inputs[excerpt])
+
+	def preprocess_range(self, original):
+		return (original/255.).astype(theano.config.floatX)
+
+	def preprocess_vgg(self, original, is_scaled_down=False):
+		scale = 255. if is_scaled_down else 1.
+		if len(original.shape) == 4:
+			return np.asarray(scale*original[:,::-1,:,:]-np.reshape(self.vgg_mean,(1,3,1,1)), dtype=theano.config.floatX)
+		elif len(original.shape) == 3:
+			return np.asarray(scale*original[::-1,:,:]-np.reshape(self.vgg_mean,(3,1,1)), dtype=theano.config.floatX)
+
+	def deprocess_vgg(self, processed):
+		if len(processed.shape) == 4:
+			return np.asarray((processed+np.reshape(self.vgg_mean,(1,3,1,1)))[:,::-1,:,:], dtype=theano.config.floatX)
+		elif len(processed.shape) == 3:
+			return np.asarray((processed+np.reshape(self.vgg_mean,(3,1,1)))[::-1,:,:], dtype=theano.config.floatX)
 
 	def get_train_batch(self):
 		return self.iterate_minibatches(self.dataset['train2014']['images'], self.train_batchsize, True)
@@ -197,7 +215,7 @@ class CocoData(object):
 		return self.iterate_minibatches(self.dataset['val2014']['images'], self.valid_batchsize, False)
 
 	def get_first_valid_batch(self):
-		return (self.dataset['val2014']['images'][:self.valid_batchsize]/255.).astype(theano.config.floatX)
+		return self.preprocess_vgg(self.dataset['val2014']['images'][:self.valid_batchsize])
 
 
 def train():
@@ -243,25 +261,28 @@ def train():
 	# pastiche_vgg_fn = theano.function([image_var], vgg_all_out)
 
 	# Get the VGG16 Loss Network's representaion of the style image
-	style_im = np.expand_dims(get_image(STYLE_IMAGE_LOCATION, (256, 256)), 0)
+	style_im = np.expand_dims(data.preprocess_vgg(get_image(STYLE_IMAGE_LOCATION, (256, 256)), True), 0)
 	vgg_style_values = style_image_vgg_fn(style_im)
 
 	# Initialize loss functions
-	loss = net.feature_loss(vgg_pastiche_content_out, vgg_content_out)
+	content_loss_value = net.feature_loss(vgg_pastiche_content_out, vgg_content_out)
+	style_loss_value = 0.
 	for pso, vsv, sllw in zip(vgg_pastiche_style_out, vgg_style_values, style_loss_layer_weights):
-		loss += net.style_loss(pso, theano.shared(vsv))*sllw
+		style_loss_value += net.style_loss(pso, theano.shared(vsv))*sllw
+	total_variation_loss_value = TOTAL_VARIATION_LOSS_WEIGHT * net.total_variation_loss(transform_pastiche_out)
+	loss = content_loss_value + style_loss_value + total_variation_loss_value
 
 	params = lasagne.layers.get_all_params(net.network['transform_net'], trainable=True)
 	updates = lasagne.updates.adam(loss, params)
-	train_fn = theano.function([image_var], loss, updates=updates)
+	train_fn = theano.function([image_var], [loss, content_loss_value, style_loss_value, total_variation_loss_value], updates=updates)
 	# TODO: If using conditional instance norm, make this deterministic
 	valid_fn = theano.function([image_var], loss)
 
 	if DEBUG:
 		content_ims = data.get_first_valid_batch()
-		save_params(REPO_DIR + 'data/model/trained/e0.npz', net.network['transform_net'])
-		save_im(REPO_DIR + 'data/debug/orig.jpg', content_ims)
-		save_im(REPO_DIR + 'data/debug/e0.jpg', pastiche_transform_fn(content_ims))
+		save_params(REPO_DIR + 'data/model/trained_' + FOLDER_SUFFIX + '/e0.npz', net.network['transform_net'])
+		save_ims(REPO_DIR + 'data/debug/im_' + FOLDER_SUFFIX, data.deprocess_vgg(content_ims), 'orig_im')
+		save_ims(REPO_DIR + 'data/debug/im_' + FOLDER_SUFFIX, data.deprocess_vgg(pastiche_transform_fn(content_ims)), 'e0_im')
 
 	print('Commencing Training...')
 	# For each epoch
@@ -271,21 +292,29 @@ def train():
 		valid_err = 0
 		train_batch_num = 0
 		valid_batch_num = 0
+		total_batch_err = content_loss_err= style_loss_err= total_variation_loss_err = 0
 		start_time = time.time()
 
 		for content_ims in data.get_train_batch():
-			train_err += train_fn(content_ims)
+			batch_train_err, minib_content_loss_err, minib_style_loss_err, minib_total_variation_loss_err = train_fn(content_ims)
+			train_err += batch_train_err
+			total_batch_err += batch_train_err
+			content_loss_err += minib_content_loss_err
+			style_loss_err += minib_style_loss_err
+			total_variation_loss_err += minib_total_variation_loss_err
 			train_batch_num += 1
 
-			if DEBUG and train_batch_num%100 == 0:
-				print("Batch " + str(train_batch_num) + ":\t{:.6f}".format(train_err / train_batch_num))
-				save_im(REPO_DIR + 'data/debug/im/e' + str(epoch + 1) + 'b' + str(train_batch_num) + '.jpg', pastiche_transform_fn(data.get_first_valid_batch()))
+			if DEBUG and train_batch_num%400 == 0:
+				print("Batch " + str(train_batch_num) + ":\t{:.6f}\t{:.6f}\t{:.6f}\t{:.6f}\t{:.6f}".format(train_err / train_batch_num, total_batch_err/400, content_loss_err/400, style_loss_err/400, total_variation_loss_err/400))
+				save_im(REPO_DIR + 'data/debug/im_' + FOLDER_SUFFIX + '/e' + str(epoch + 1) + 'b' + str(train_batch_num) + '.jpg', data.deprocess_vgg(pastiche_transform_fn(data.get_first_valid_batch())))
+				total_batch_err= content_loss_err= style_loss_err= total_variation_loss_err = 0
 
-		save_params(REPO_DIR + 'data/model/trained/e' + str(epoch + 1) + '.npz', net.network['transform_net'])
+		if DEBUG:
+			save_ims(REPO_DIR + 'data/debug/im_' + FOLDER_SUFFIX, data.deprocess_vgg(pastiche_transform_fn(data.get_first_valid_batch())), 'e' + str(epoch + 1) + '_im')
+
+		save_params(REPO_DIR + 'data/model/trained_' + FOLDER_SUFFIX + '/e' + str(epoch + 1) + '.npz', net.network['transform_net'])
 		if VALIDATE:
 			for content_ims in data.get_valid_batch():
-				if DEBUG and valid_batch_num == 0:
-					save_im(REPO_DIR + 'data/debug/e' + str(epoch + 1) + 'v.jpg', pastiche_transform_fn(content_ims))
 				valid_err += valid_fn(content_ims)
 				valid_batch_num += 1
 
@@ -309,7 +338,8 @@ def stylize():
 	load_params(net.network['transform_net'], MODEL_FILE)
 
 	print('Loading Images...')
-	ims = get_images(INPUT_LOCATION, shape)
+	data = CocoData(train_batchsize=4)
+	ims = data.preprocess_vgg(get_images(INPUT_LOCATION, shape), True)
 
 	print('Compiling Functions...')
 	# initialize transformer network function
@@ -320,7 +350,7 @@ def stylize():
 	out_ims = pastiche_transform_fn(ims)
 
 	print('Saving images...')
-	save_ims(OUTPUT_LOCATION, out_ims)
+	save_ims(OUTPUT_LOCATION, data.deprocess_vgg(out_ims))
 
 	print('Done.')
 
