@@ -90,6 +90,9 @@ def get_images(path, dim=(256, 256), grey=False, **kwargs):
 	"""
 	Given a folder, return a 4D numpy array with all images in the folder
 	"""
+	if os.path.isfile(path):
+		return get_image_as_batch(path, dim=dim, grey=grey, **kwargs)
+
 	path += '/'
 	ims_paths = [path+im_path for im_path in os.listdir(path) if os.path.isfile(path+im_path)]
 
