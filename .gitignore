@@ -87,3 +87,8 @@ ENV/
 
 # Rope project settings
 .ropeproject
+
+# gogh-figure specific
+batchnorm_candy*.txt
+batchnorm_candy*.inc
+test*/

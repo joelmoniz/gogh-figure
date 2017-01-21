@@ -86,7 +86,7 @@ def get_image(path, dim=None, grey=False, maintain_aspect=True, center=True):
 def get_image_as_batch(path, **kwargs):
 	return np.expand_dims(get_image(path, **kwargs), axis=0)
 
-def get_images(path, dim=(256, 256), grey=False, **kwargs):
+def get_images(path, dim=None, grey=False, **kwargs):
 	"""
 	Given a folder, return a 4D numpy array with all images in the folder
 	"""
@@ -96,13 +96,19 @@ def get_images(path, dim=(256, 256), grey=False, **kwargs):
 	path += '/'
 	ims_paths = [path+im_path for im_path in os.listdir(path) if os.path.isfile(path+im_path)]
 
-	if grey:
-		ims = np.zeros((len(ims_paths), 1, dim[0], dim[1]), dtype='float32')
+	if dim == None:
+		ims = []
 	else:
-		ims = np.zeros((len(ims_paths), 3, dim[0], dim[1]), dtype='float32')
+		if grey:
+			ims = np.zeros((len(ims_paths), 1, dim[0], dim[1]), dtype='float32')
+		else:
+			ims = np.zeros((len(ims_paths), 3, dim[0], dim[1]), dtype='float32')
 
 	for i, im_path in enumerate(ims_paths):
-		ims[i] = get_image(im_path, dim, grey, **kwargs)
+		if dim == None:
+			ims.append(get_image(im_path, dim, grey, **kwargs))
+		else:
+			ims[i] = get_image(im_path, dim, grey, **kwargs)
 
 	return ims
 
