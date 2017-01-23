@@ -107,13 +107,17 @@ class InstanceNormLayer(Layer):
 	Note that unlike the fns implementation, which uses 1e-5 as epsilon (the torch default),
 	this implementation uses 1e-4 as epsilon (the lasagne default).
 	"""
-	def __init__(self, incoming, epsilon=1e-4,
+	def __init__(self, incoming, num_styles=None, epsilon=1e-4,
 				 beta=Constant(0), gamma=Constant(1), **kwargs):
 		super(InstanceNormLayer, self).__init__(incoming, **kwargs)
 
 		self.axes = (2, 3)
 		self.epsilon = epsilon
-		shape = (self.input_shape[1],)
+
+		if num_styles == None:
+			shape = (self.input_shape[1],)
+		else:
+			shape = (num_styles, self.input_shape[1])
 
 		if beta is None:
 			self.beta = None
@@ -126,15 +130,28 @@ class InstanceNormLayer(Layer):
 			self.gamma = self.add_param(gamma, shape, 'gamma',
 										trainable=True, regularizable=True)
 
-	def get_output_for(self, input, **kwargs):
+	def get_output_for(self, input, style=None, **kwargs):
 
 		mean = input.mean(self.axes)
 		inv_std = T.inv(T.sqrt(input.var(self.axes) + self.epsilon))
 
-		beta = 0 if self.beta is None else self.beta.dimshuffle(['x', 0, 'x', 'x'])
-		gamma = 1 if self.gamma is None else self.gamma.dimshuffle(['x', 0, 'x', 'x'])
-		mean = mean.dimshuffle([0, 1, 'x', 'x'])
-		inv_std = inv_std.dimshuffle([0, 1, 'x', 'x'])
+		pattern = [0, 1, 'x', 'x']
+
+		if style == None:
+			pattern_params = ['x', 0, 'x', 'x']
+			beta = 0 if self.beta is None else self.beta.dimshuffle(pattern_params)
+			gamma = 1 if self.gamma is None else self.gamma.dimshuffle(pattern_params)
+		else:
+			pattern_params = pattern
+			beta = 0 if self.beta is None else self.beta[style].dimshuffle(pattern_params)
+			gamma = 1 if self.gamma is None else self.gamma[style].dimshuffle(pattern_params)
+			# if self.beta is not None:
+			# 	beta = ifelse(T.eq(style.shape[0], 1), T.addbroadcast(beta, 0), beta)
+			# if self.gamma is not None:
+			# 	gamma = ifelse(T.eq(style.shape[0], 1), T.addbroadcast(gamma, 0), gamma)
+
+		mean = mean.dimshuffle(pattern)
+		inv_std = inv_std.dimshuffle(pattern)
 
 		# normalize
 		normalized = (input - mean) * (gamma * inv_std) + beta
@@ -160,9 +177,9 @@ def instance_norm(layer, **kwargs):
 	return layer
 
 # TODO: Add normalization
-def style_conv_block(conv_in, num_filters, filter_size, stride, nonlinearity=rectify, normalization=instance_norm):
+def style_conv_block(conv_in, num_filters, filter_size, stride, nonlinearity=rectify, normalization=instance_norm, num_styles=10):
 	sc_network = ReflectLayer(conv_in, filter_size//2)
-	sc_network = normalization(ConvLayer(sc_network, num_filters, filter_size, stride, nonlinearity=nonlinearity, W=Normal()))
+	sc_network = normalization(ConvLayer(sc_network, num_filters, filter_size, stride, nonlinearity=nonlinearity, W=Normal()), num_styles=num_styles)
 	return sc_network
 
 def residual_block(resnet_in, num_filters=None, filter_size=3, stride=1):
