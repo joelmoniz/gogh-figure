@@ -230,6 +230,7 @@ def train():
 	# TODO: These should be user accpeted:
 	DEBUG = True
 	VALIDATE = False
+	NET_TYPE = 1 # 0-fns, 1-cin
 	STYLE_LOSS_LAYERS = {'conv1_2': 4e-4,'conv2_2': 4e-4,'conv3_3': 4e-4,'conv4_3': 4e-4}
 	TOTAL_VARIATION_LOSS_WEIGHT = 0.
 	CONTENT_LOSS_LAYER = 'conv3_3'
@@ -250,7 +251,10 @@ def train():
 	data = CocoData(train_batchsize=4)
 
 	print('Loading Networks...')
-	net = Network(data.vgg_to_range(image_var))
+	if NET_TYPE == 1:
+		net = Network(data.vgg_to_range(image_var))
+	elif NET_TYPE == 0:
+		net = Network(image_var, net_type=0)
 
 	print('Compiling Functions...')
 	# initialize transformer network function
@@ -262,11 +266,17 @@ def train():
 	style_loss_layer_weights = [STYLE_LOSS_LAYERS[w]/(1.0*len(style_loss_layer_keys)) for w in style_loss_layer_keys]
 
 	if CONTENT_LOSS_LAYER in style_loss_layer_keys:
-		vgg_all_out = lasagne.layers.get_output([net.network['loss_net'][x] for x in style_loss_layer_keys], data.range_to_vgg(transform_pastiche_out))
+		if NET_TYPE == 1:
+			vgg_all_out = lasagne.layers.get_output([net.network['loss_net'][x] for x in style_loss_layer_keys], data.range_to_vgg(transform_pastiche_out))
+		elif NET_TYPE == 0:
+			vgg_all_out = lasagne.layers.get_output([net.network['loss_net'][x] for x in style_loss_layer_keys], transform_pastiche_out)
 		vgg_pastiche_style_out = vgg_all_out
 		vgg_pastiche_content_out = vgg_all_out[style_loss_layer_keys.index(CONTENT_LOSS_LAYER)]
 	else:
-		vgg_all_out = lasagne.layers.get_output([net.network['loss_net'][x] for x in style_loss_layer_keys+[CONTENT_LOSS_LAYER]], data.range_to_vgg(transform_pastiche_out))
+		if NET_TYPE == 1:
+			vgg_all_out = lasagne.layers.get_output([net.network['loss_net'][x] for x in style_loss_layer_keys+[CONTENT_LOSS_LAYER]], data.range_to_vgg(transform_pastiche_out))
+		elif NET_TYPE == 0:
+			vgg_all_out = lasagne.layers.get_output([net.network['loss_net'][x] for x in style_loss_layer_keys+[CONTENT_LOSS_LAYER]], transform_pastiche_out)
 		vgg_pastiche_style_out = vgg_all_out[:-1]
 		vgg_pastiche_content_out = vgg_all_out[-1]
 	vgg_style_out = lasagne.layers.get_output([net.network['loss_net'][x] for x in style_loss_layer_keys], image_var)
@@ -277,7 +287,6 @@ def train():
 	# pastiche_vgg_fn = theano.function([image_var], vgg_all_out)
 
 	# Get the VGG16 Loss Network's representaion of the style image
-	# style_im = np.expand_dims(data.preprocess_vgg(get_image(STYLE_IMAGE_LOCATION, (256, 256)), True), 0)
 	style_im = data.range_to_vgg(get_images(STYLE_IMAGE_LOCATION, (256, 256), maintain_aspect=True))
 	print(style_im.shape)
 	vgg_style_values = style_image_vgg_fn(style_im)
@@ -302,7 +311,10 @@ def train():
 		save_params(REPO_DIR + 'data/model/trained_' + FOLDER_SUFFIX + '/e0.npz', net.network['transform_net'])
 		save_ims(REPO_DIR + 'data/debug/im_' + FOLDER_SUFFIX, data.deprocess_vgg(content_ims), 'orig_im')
 		for i in range(0, style_im.shape[0]):
-			save_ims(REPO_DIR + 'data/debug/im_' + FOLDER_SUFFIX, pastiche_transform_fn(content_ims, [i]*data.valid_batchsize), 'e0_s'+str(i)+'_im')
+			if NET_TYPE == 1:
+				save_ims(REPO_DIR + 'data/debug/im_' + FOLDER_SUFFIX, pastiche_transform_fn(content_ims, [i]*data.valid_batchsize), 'e0_s'+str(i)+'_im')
+			elif NET_TYPE == 0:
+				save_ims(REPO_DIR + 'data/debug/im_' + FOLDER_SUFFIX, data.deprocess_vgg(pastiche_transform_fn(content_ims, [i]*data.valid_batchsize)), 'e0_s'+str(i)+'_im')
 
 	print('Commencing Training...')
 	# For each epoch
@@ -330,11 +342,17 @@ def train():
 				total_batch_err= content_loss_err= style_loss_err= total_variation_loss_err = 0
 				if train_batch_num%min(400*style_im.shape[0], 25000) == 0:
 					for i in range(0, style_im.shape[0]):
-						save_im(REPO_DIR + 'data/debug/im_' + FOLDER_SUFFIX + '/e' + str(epoch + 1) + 'b' + str(train_batch_num) + 's' + str(i) + '.jpg', pastiche_transform_fn(data.get_first_valid_batch(), [i]*data.valid_batchsize))
+						if NET_TYPE == 1:
+							save_im(REPO_DIR + 'data/debug/im_' + FOLDER_SUFFIX + '/e' + str(epoch + 1) + 'b' + str(train_batch_num) + 's' + str(i) + '.jpg', pastiche_transform_fn(data.get_first_valid_batch(), [i]*data.valid_batchsize))
+						elif NET_TYPE == 0:
+							save_im(REPO_DIR + 'data/debug/im_' + FOLDER_SUFFIX + '/e' + str(epoch + 1) + 'b' + str(train_batch_num) + 's' + str(i) + '.jpg', data.deprocess_vgg(pastiche_transform_fn(data.get_first_valid_batch(), [i]*data.valid_batchsize)))
 
 		if DEBUG:
 			for i in range(0, style_im.shape[0]):
-				save_ims(REPO_DIR + 'data/debug/im_' + FOLDER_SUFFIX, pastiche_transform_fn(data.get_first_valid_batch(), [i]*data.valid_batchsize), 'e' + str(epoch + 1) + '_s' + str(i) + '_im')
+				if NET_TYPE == 1:
+					save_ims(REPO_DIR + 'data/debug/im_' + FOLDER_SUFFIX, pastiche_transform_fn(data.get_first_valid_batch(), [i]*data.valid_batchsize), 'e' + str(epoch + 1) + '_s' + str(i) + '_im')
+				elif NET_TYPE == 0:
+					save_ims(REPO_DIR + 'data/debug/im_' + FOLDER_SUFFIX, data.deprocess_vgg(pastiche_transform_fn(data.get_first_valid_batch(), [i]*data.valid_batchsize)), 'e' + str(epoch + 1) + '_s' + str(i) + '_im')
 
 		save_params(REPO_DIR + 'data/model/trained_' + FOLDER_SUFFIX + '/e' + str(epoch + 1) + '.npz', net.network['transform_net'])
 		# if VALIDATE:
