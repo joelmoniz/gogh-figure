@@ -193,20 +193,28 @@ class CocoData(object):
 			yield self.preprocess_vgg(inputs[excerpt])
 
 	def preprocess_range(self, original):
-		return (original/255.).astype(theano.config.floatX)
+		return (original/np.asarray(255., theano.config.floatX))
 
-	def preprocess_vgg(self, original, is_scaled_down=False):
+	def depreprocess_range(self, processed):
+		return processed*np.asarray(255, dtype='uint8')
+
+	def preprocess_vgg(self, original):
+		return original[:,::-1,:,:]-np.asarray(np.reshape(self.vgg_mean,(1,3,1,1)), dtype=theano.config.floatX)
 		scale = 255. if is_scaled_down else 1.
+		scale = np.asarray(scale, dtype=theano.config.floatX)
 		if len(original.shape) == 4:
 			return np.asarray(scale*original[:,::-1,:,:]-np.reshape(self.vgg_mean,(1,3,1,1)), dtype=theano.config.floatX)
 		elif len(original.shape) == 3:
 			return np.asarray(scale*original[::-1,:,:]-np.reshape(self.vgg_mean,(3,1,1)), dtype=theano.config.floatX)
 
 	def deprocess_vgg(self, processed):
-		if len(processed.shape) == 4:
-			return np.asarray((processed+np.reshape(self.vgg_mean,(1,3,1,1)))[:,::-1,:,:], dtype=theano.config.floatX)
-		elif len(processed.shape) == 3:
-			return np.asarray((processed+np.reshape(self.vgg_mean,(3,1,1)))[::-1,:,:], dtype=theano.config.floatX)
+		return (processed+np.reshape(self.vgg_mean,(1,3,1,1)))[:,::-1,:,:]
+
+	def range_to_vgg(self, range_processed):
+		return self.preprocess_vgg(self.depreprocess_range(range_processed))
+
+	def vgg_to_range(self, vgg_processed):
+		return self.preprocess_range(self.deprocess_vgg(vgg_processed))
 
 	def get_train_batch(self):
 		return self.iterate_minibatches(self.dataset['train2014']['images'], self.train_batchsize, True)
