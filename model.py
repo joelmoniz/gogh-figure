@@ -52,7 +52,7 @@ class Network(object):
 	LOSS_NET_DOWNLOAD_LINK = "TODO" + str(LOSS_NET_VERSION) + "TODO" + LOSS_NET_MODEL_FILE_NAME
 	LOSS_NET_MODEL_FILE_PATH = MODEL_PATH + LOSS_NET_MODEL_FILE_NAME
 
-	def __init__(self, input_var=None, shape=(None, 3, 256, 256), net_type=0, **kwargs):
+	def __init__(self, input_var=None, shape=(None, 3, 256, 256), net_type=1, **kwargs):
 		"""
 		net_type: 0 (fast neural style- fns) or 1 (conditional instance norm- cin)
 		"""
@@ -230,9 +230,9 @@ def train():
 	# TODO: These should be user accpeted:
 	DEBUG = True
 	VALIDATE = False
-	STYLE_LOSS_LAYERS = {'conv1_2': 20.,'conv2_2': 20.,'conv3_3': 20.,'conv4_3': 20.}
-	TOTAL_VARIATION_LOSS_WEIGHT = 1e-6
-	CONTENT_LOSS_LAYER = 'conv2_2'
+	STYLE_LOSS_LAYERS = {'conv1_2': 4e-4,'conv2_2': 4e-4,'conv3_3': 4e-4,'conv4_3': 4e-4}
+	TOTAL_VARIATION_LOSS_WEIGHT = 0.
+	CONTENT_LOSS_LAYER = 'conv3_3'
 	NUM_EPOCHS = 2 # 40k steps is around 8 epochs
 	STYLE_IMAGE_LOCATION = REPO_DIR + 'data/images/styles/candy.jpg'
 	FOLDER_SUFFIX = 'jc_s5_ve-6_i_candy'
@@ -244,28 +244,29 @@ def train():
 	pastiche_content_var = T.tensor4('pastiche_content')
 	style_var = T.TensorType(theano.config.floatX,(False,)*5) ('style')
 	pastiche_style_var = T.TensorType(theano.config.floatX,(False,)*5) ('pastiche_style')
-
-	print('Loading Networks...')
-	net = Network(image_var)
+	chosen_style_var=T.ivector('chosen_style')
 
 	print('Loading Data...')
 	data = CocoData(train_batchsize=4)
 
+	print('Loading Networks...')
+	net = Network(data.vgg_to_range(image_var))
+
 	print('Compiling Functions...')
 	# initialize transformer network function
-	transform_pastiche_out = lasagne.layers.get_output(net.network['transform_net'])
-	pastiche_transform_fn = theano.function([image_var], transform_pastiche_out)
+	transform_pastiche_out = lasagne.layers.get_output(net.network['transform_net'], style=chosen_style_var)
+	pastiche_transform_fn = theano.function([image_var, chosen_style_var], transform_pastiche_out)
 
 	# initialize loss network related functions
 	style_loss_layer_keys = STYLE_LOSS_LAYERS.keys()
 	style_loss_layer_weights = [STYLE_LOSS_LAYERS[w]/(1.0*len(style_loss_layer_keys)) for w in style_loss_layer_keys]
 
 	if CONTENT_LOSS_LAYER in style_loss_layer_keys:
-		vgg_all_out = lasagne.layers.get_output([net.network['loss_net'][x] for x in style_loss_layer_keys], transform_pastiche_out)
+		vgg_all_out = lasagne.layers.get_output([net.network['loss_net'][x] for x in style_loss_layer_keys], data.range_to_vgg(transform_pastiche_out))
 		vgg_pastiche_style_out = vgg_all_out
 		vgg_pastiche_content_out = vgg_all_out[style_loss_layer_keys.index(CONTENT_LOSS_LAYER)]
 	else:
-		vgg_all_out = lasagne.layers.get_output([net.network['loss_net'][x] for x in style_loss_layer_keys+[CONTENT_LOSS_LAYER]], transform_pastiche_out)
+		vgg_all_out = lasagne.layers.get_output([net.network['loss_net'][x] for x in style_loss_layer_keys+[CONTENT_LOSS_LAYER]], data.range_to_vgg(transform_pastiche_out))
 		vgg_pastiche_style_out = vgg_all_out[:-1]
 		vgg_pastiche_content_out = vgg_all_out[-1]
 	vgg_style_out = lasagne.layers.get_output([net.network['loss_net'][x] for x in style_loss_layer_keys], image_var)
@@ -276,28 +277,32 @@ def train():
 	# pastiche_vgg_fn = theano.function([image_var], vgg_all_out)
 
 	# Get the VGG16 Loss Network's representaion of the style image
-	style_im = np.expand_dims(data.preprocess_vgg(get_image(STYLE_IMAGE_LOCATION, (256, 256)), True), 0)
+	# style_im = np.expand_dims(data.preprocess_vgg(get_image(STYLE_IMAGE_LOCATION, (256, 256)), True), 0)
+	style_im = data.range_to_vgg(get_images(STYLE_IMAGE_LOCATION, (256, 256), maintain_aspect=True))
+	print(style_im.shape)
 	vgg_style_values = style_image_vgg_fn(style_im)
 
 	# Initialize loss functions
 	content_loss_value = net.feature_loss(vgg_pastiche_content_out, vgg_content_out)
 	style_loss_value = 0.
 	for pso, vsv, sllw in zip(vgg_pastiche_style_out, vgg_style_values, style_loss_layer_weights):
-		style_loss_value += net.style_loss(pso, theano.shared(vsv))*sllw
+		style_loss_value += net.style_loss(pso, theano.shared(vsv)[[chosen_style_var[0]]])*sllw
 	total_variation_loss_value = TOTAL_VARIATION_LOSS_WEIGHT * net.total_variation_loss(transform_pastiche_out)
 	loss = content_loss_value + style_loss_value + total_variation_loss_value
 
 	params = lasagne.layers.get_all_params(net.network['transform_net'], trainable=True)
 	updates = lasagne.updates.adam(loss, params)
-	train_fn = theano.function([image_var], [loss, content_loss_value, style_loss_value, total_variation_loss_value], updates=updates)
+	train_fn = theano.function([image_var, chosen_style_var], [loss, content_loss_value, style_loss_value, total_variation_loss_value], updates=updates)
+
 	# TODO: If using conditional instance norm, make this deterministic
-	valid_fn = theano.function([image_var], loss)
+	# valid_fn = theano.function([image_var], loss)
 
 	if DEBUG:
 		content_ims = data.get_first_valid_batch()
 		save_params(REPO_DIR + 'data/model/trained_' + FOLDER_SUFFIX + '/e0.npz', net.network['transform_net'])
 		save_ims(REPO_DIR + 'data/debug/im_' + FOLDER_SUFFIX, data.deprocess_vgg(content_ims), 'orig_im')
-		save_ims(REPO_DIR + 'data/debug/im_' + FOLDER_SUFFIX, data.deprocess_vgg(pastiche_transform_fn(content_ims)), 'e0_im')
+		for i in range(0, style_im.shape[0]):
+			save_ims(REPO_DIR + 'data/debug/im_' + FOLDER_SUFFIX, pastiche_transform_fn(content_ims, [i]*data.valid_batchsize), 'e0_s'+str(i)+'_im')
 
 	print('Commencing Training...')
 	# For each epoch
@@ -311,7 +316,8 @@ def train():
 		start_time = time.time()
 
 		for content_ims in data.get_train_batch():
-			batch_train_err, minib_content_loss_err, minib_style_loss_err, minib_total_variation_loss_err = train_fn(content_ims)
+			batch_style_num = np.random.randint(0, style_im.shape[0])
+			batch_train_err, minib_content_loss_err, minib_style_loss_err, minib_total_variation_loss_err = train_fn(content_ims, [batch_style_num]*data.train_batchsize)
 			train_err += batch_train_err
 			total_batch_err += batch_train_err
 			content_loss_err += minib_content_loss_err
@@ -321,17 +327,20 @@ def train():
 
 			if DEBUG and train_batch_num%400 == 0:
 				print("Batch " + str(train_batch_num) + ":\t{:.6f}\t{:.6f}\t{:.6f}\t{:.6f}\t{:.6f}".format(train_err / train_batch_num, total_batch_err/400, content_loss_err/400, style_loss_err/400, total_variation_loss_err/400))
-				save_im(REPO_DIR + 'data/debug/im_' + FOLDER_SUFFIX + '/e' + str(epoch + 1) + 'b' + str(train_batch_num) + '.jpg', data.deprocess_vgg(pastiche_transform_fn(data.get_first_valid_batch())))
 				total_batch_err= content_loss_err= style_loss_err= total_variation_loss_err = 0
+				if train_batch_num%min(400*style_im.shape[0], 25000) == 0:
+					for i in range(0, style_im.shape[0]):
+						save_im(REPO_DIR + 'data/debug/im_' + FOLDER_SUFFIX + '/e' + str(epoch + 1) + 'b' + str(train_batch_num) + 's' + str(i) + '.jpg', pastiche_transform_fn(data.get_first_valid_batch(), [i]*data.valid_batchsize))
 
 		if DEBUG:
-			save_ims(REPO_DIR + 'data/debug/im_' + FOLDER_SUFFIX, data.deprocess_vgg(pastiche_transform_fn(data.get_first_valid_batch())), 'e' + str(epoch + 1) + '_im')
+			for i in range(0, style_im.shape[0]):
+				save_ims(REPO_DIR + 'data/debug/im_' + FOLDER_SUFFIX, pastiche_transform_fn(data.get_first_valid_batch(), [i]*data.valid_batchsize), 'e' + str(epoch + 1) + '_s' + str(i) + '_im')
 
 		save_params(REPO_DIR + 'data/model/trained_' + FOLDER_SUFFIX + '/e' + str(epoch + 1) + '.npz', net.network['transform_net'])
-		if VALIDATE:
-			for content_ims in data.get_valid_batch():
-				valid_err += valid_fn(content_ims)
-				valid_batch_num += 1
+		# if VALIDATE:
+		# 	for content_ims in data.get_valid_batch():
+		# 		valid_err += valid_fn(content_ims)
+		# 		valid_batch_num += 1
 
 		print("Epoch {} of {} took {:.3f}s".format(
 			epoch + 1, NUM_EPOCHS, time.time() - start_time))
