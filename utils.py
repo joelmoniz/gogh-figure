@@ -153,3 +153,13 @@ def save_ims(folder_name, ims, prefix='im'):
 	create_dir_if_not_exists(folder_name)
 	for i, im in enumerate(ims):
 		save_im(folder_name + '/' + prefix + str(i) + '.jpg', im)
+
+def save_tiled_im(file_name, im_list, tile_pattern):
+	assert len(im_list) == tile_pattern[0]*tile_pattern[1]
+
+	tiled_im = np.dstack(im_list[0:tile_pattern[1]])
+
+	for r in range(1, tile_pattern[0]):
+		tiled_im = np.hstack((tiled_im, np.dstack(im_list[r*tile_pattern[1]:(r+1)*tile_pattern[1]])))
+
+	return save_im(file_name, tiled_im)
