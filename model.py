@@ -165,7 +165,7 @@ class Network(object):
 
 	def total_variation_loss(self, x):
 		# https://github.com/alexjc/neural-enhance/blob/master/enhance.py#L408-L409
-		return T.mean(((x[:,:,:-1,:-1] - x[:,:,1:,:-1])**2 + (x[:,:,:-1,:-1] - x[:,:,:-1,1:])**2)**1.25)
+		return T.sum(((x[:,:,:-1,:-1] - x[:,:,1:,:-1])**2 + (x[:,:,:-1,:-1] - x[:,:,:-1,1:])**2)**1.25)
 
 class CocoData(object):
 

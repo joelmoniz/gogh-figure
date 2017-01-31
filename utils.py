@@ -162,4 +162,4 @@ def save_tiled_im(file_name, im_list, tile_pattern):
 	for r in range(1, tile_pattern[0]):
 		tiled_im = np.hstack((tiled_im, np.dstack(im_list[r*tile_pattern[1]:(r+1)*tile_pattern[1]])))
 
-	return save_im(file_name, tiled_im)
+	save_im(file_name, tiled_im)
