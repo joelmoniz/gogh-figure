@@ -163,3 +163,16 @@ def save_tiled_im(file_name, im_list, tile_pattern):
 		tiled_im = np.hstack((tiled_im, np.dstack(im_list[r*tile_pattern[1]:(r+1)*tile_pattern[1]])))
 
 	save_im(file_name, tiled_im)
+
+def generate_checked_image(file_name, im_list, check_pattern):
+	assert len(im_list) == check_pattern[0]*check_pattern[1]
+
+	ims = np.asarray(im_list)
+	checked_im = np.zeros(ims.shape[1:])
+
+	for i in range(check_pattern[0]):
+		for j in range(check_pattern[1]):
+			checked_im[:, i*checked_im.shape[1]/check_pattern[0]:(i+1)*checked_im.shape[1]/check_pattern[0], j*checked_im.shape[2]/check_pattern[1]:(j+1)*checked_im.shape[2]/check_pattern[1]] = \
+			ims[i*check_pattern[1]+j, :, i*checked_im.shape[1]/check_pattern[0]:(i+1)*checked_im.shape[1]/check_pattern[0], j*checked_im.shape[2]/check_pattern[1]:(j+1)*checked_im.shape[2]/check_pattern[1]]
+
+	save_im(file_name, checked_im)
