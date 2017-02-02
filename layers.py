@@ -177,26 +177,26 @@ def instance_norm(layer, **kwargs):
 	return layer
 
 # TODO: Add normalization
-def style_conv_block(conv_in, num_filters, filter_size, stride, nonlinearity=rectify, normalization=instance_norm, num_styles=10):
+def style_conv_block(conv_in, num_styles, num_filters, filter_size, stride, nonlinearity=rectify, normalization=instance_norm):
 	sc_network = ReflectLayer(conv_in, filter_size//2)
 	sc_network = normalization(ConvLayer(sc_network, num_filters, filter_size, stride, nonlinearity=nonlinearity, W=Normal()), num_styles=num_styles)
 	return sc_network
 
-def residual_block(resnet_in, num_filters=None, filter_size=3, stride=1):
+def residual_block(resnet_in, num_styles=None, num_filters=None, filter_size=3, stride=1):
 	if num_filters == None:
 		num_filters = resnet_in.output_shape[1]
 
-	conv1 = style_conv_block(resnet_in, num_filters, filter_size, stride)
-	conv2 = style_conv_block(conv1, num_filters, filter_size, stride, linear)
+	conv1 = style_conv_block(resnet_in, num_styles, num_filters, filter_size, stride)
+	conv2 = style_conv_block(conv1, num_styles, num_filters, filter_size, stride, linear)
 	res_block = ElemwiseSumLayer([conv2, resnet_in])
 
 	return res_block
 
-def nn_upsample(upsample_in, num_filters=None, filter_size=3, stride=1):
+def nn_upsample(upsample_in, num_styles=None, num_filters=None, filter_size=3, stride=1):
 	if num_filters == None:
 		num_filters = upsample_in.output_shape[1]
 
 	nn_network = ExpressionLayer(upsample_in, lambda X: X.repeat(2, 2).repeat(2, 3), output_shape='auto')
-	nn_network = style_conv_block(nn_network, num_filters, filter_size, stride)
+	nn_network = style_conv_block(nn_network, num_styles, num_filters, filter_size, stride)
 
 	return nn_network

@@ -52,7 +52,7 @@ class Network(object):
 	LOSS_NET_DOWNLOAD_LINK = "TODO" + str(LOSS_NET_VERSION) + "TODO" + LOSS_NET_MODEL_FILE_NAME
 	LOSS_NET_MODEL_FILE_PATH = MODEL_PATH + LOSS_NET_MODEL_FILE_NAME
 
-	def __init__(self, input_var=None, shape=(None, 3, 256, 256), net_type=1, **kwargs):
+	def __init__(self, input_var=None, num_styles=None, shape=(None, 3, 256, 256), net_type=1, **kwargs):
 		"""
 		net_type: 0 (fast neural style- fns) or 1 (conditional instance norm- cin)
 		"""
@@ -72,6 +72,8 @@ class Network(object):
 
 		self.network['transform_net'] = {}
 		self.setup_transform_net(input_var)
+
+		self.num_styles = num_styles
 
 	def setup_loss_net(self):
 		"""
@@ -110,19 +112,19 @@ class Network(object):
 
 	def setup_transform_net(self, input_var=None):
 		transform_net = InputLayer(shape=self.shape, input_var=input_var)
-		transform_net = style_conv_block(transform_net, 32, 9, 1)
-		transform_net = style_conv_block(transform_net, 64, 9, 2)
-		transform_net = style_conv_block(transform_net, 128, 9, 2)
+		transform_net = style_conv_block(transform_net, self.num_styles, 32, 9, 1)
+		transform_net = style_conv_block(transform_net, self.num_styles, 64, 9, 2)
+		transform_net = style_conv_block(transform_net, self.num_styles, 128, 9, 2)
 		for _ in range(5):
-			transform_net = residual_block(transform_net)
-		transform_net = nn_upsample(transform_net)
-		transform_net = nn_upsample(transform_net)
+			transform_net = residual_block(transform_net, self.num_styles)
+		transform_net = nn_upsample(transform_net, self.num_styles)
+		transform_net = nn_upsample(transform_net, self.num_styles)
 
 		if self.net_type == 0:
-			transform_net = style_conv_block(transform_net, 3, 9, 1, tanh)
+			transform_net = style_conv_block(transform_net, self.num_styles, 3, 9, 1, tanh)
 			transform_net = ExpressionLayer(transform_net, lambda X: 150.*X, output_shape=None)
 		elif self.net_type == 1:
-			transform_net = style_conv_block(transform_net, 3, 9, 1, sigmoid)
+			transform_net = style_conv_block(transform_net, self.num_styles, 3, 9, 1, sigmoid)
 
 		self.network['transform_net'] = transform_net
 
@@ -255,12 +257,13 @@ def train():
 
 	print('Loading Data...')
 	data = CocoData(train_batchsize=4)
+	style_im = get_images(STYLE_IMAGE_LOCATION, (256, 256), maintain_aspect=True)
 
 	print('Loading Networks...')
 	if NET_TYPE == 1:
-		net = Network(data.vgg_to_range(image_var))
+		net = Network(data.vgg_to_range(image_var), len(style_im))
 	elif NET_TYPE == 0:
-		net = Network(image_var, net_type=0)
+		net = Network(image_var, len(style_im), net_type=0)
 
 	print('Compiling Functions...')
 	# initialize transformer network function
@@ -294,7 +297,6 @@ def train():
 
 	# Get the VGG16 Loss Network's representaion of the style image
 	# style_im = np.expand_dims(data.preprocess_vgg(get_image(STYLE_IMAGE_LOCATION, (256, 256)), True), 0)
-	style_im = get_images(STYLE_IMAGE_LOCATION, (256, 256), maintain_aspect=True)
 	style_ims_gram = [style_image_vgg_fn(data.range_to_vgg(np.expand_dims(im, axis=0))) for im in style_im]
 	# pdb.set_trace()
 	style_ims_gram = list(map(list, zip(*style_ims_gram))) # gotta love python; gotta love SO even more: http://stackoverflow.com/a/6473724/2427542
