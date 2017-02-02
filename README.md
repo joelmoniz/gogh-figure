@@ -5,7 +5,13 @@ Fast, Lightweight Style Transfer using Deep Learning: A re-implementation of "A 
 ## Results
 
 ### Conditional Instance Normalization
-This repository contains a re-implementation of the paper [A Learned Representation For Artistic Style](https://arxiv.org/abs/1610.07629) and its [Google Magenta TensorFlow implementation](https://github.com/tensorflow/magenta/tree/master/magenta/models/image_stylization). The only major difference is that the batch size has been changed (from 16 to 4); this was found to reduce training time without affecting the quality of the images generated. The following are the results when this technique was applied to style images described in the paper (to generate pastiches of a set of 32 paintings by various artists, and of 10 paintings by Monet, respectively):
+This repository contains a re-implementation of the paper [A Learned Representation For Artistic Style](https://arxiv.org/abs/1610.07629) and its [Google Magenta TensorFlow implementation](https://github.com/tensorflow/magenta/tree/master/magenta/models/image_stylization). The major differences are as follows:
+
+1. The batch size has been changed (from 16 to 4); this was found to reduce training time without affecting the quality of the images generated.
+2. Training is done with the COCO dataset, as opposed to with ImageNet
+3. The style loss weights have been divided by the number of layers used to calculate the loss (though the values of the weights themselves have been increased so that the actual weights effectively remain the same)
+
+The following are the results when this technique was applied to style images described in the paper (to generate pastiches of a set of 32 paintings by various artists, and of 10 paintings by Monet, respectively):
 
 #### Misc. 32
 
@@ -72,6 +78,7 @@ This repository also contains a re-implementation of the paper [Perceptual Losse
   These changes obviate the need of a total variation loss, in addition to providing other advantages.
 3. The implementation of the total variational loss is in accordance with [this](https://github.com/Lasagne/Recipes/blob/master/examples/styletransfer/Art%20Style%20Transfer.ipynb) one, different from the author's implementation. Total varition loss is no longer required, however (refer point 2). 
 4. The implementation uses Instance Normalization (proposed in the paper ["Instance Normalization: The Missing Ingredient for Fast Stylization"](https://arxiv.org/abs/1607.08022)) by default: although Instance Normalization has been used in the repo containing the author's implementation of the paper, it was proposed after the paper itself was released.
+5. The style loss weights have been divided by the number of layers used to calculate the loss (though the values of the weights themselves have been increased so that the actual weights effectively remain the same)
 
 <p align='center'>  
   <img src='data/styles/candy.jpg' height="225px">    
