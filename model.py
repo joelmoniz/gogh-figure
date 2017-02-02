@@ -36,10 +36,12 @@ from lasagne.layers import batch_norm, BatchNormLayer
 
 from utils import *
 from layers import *
+import argparse
+import yaml
 
 try:
 	REPO_DIR = __file__[:-1*__file__[::-1].index('/')]
-except Exception, e:
+except Exception:
 	REPO_DIR = './'
 
 class Network(object):
@@ -233,18 +235,49 @@ class CocoData(object):
 	def get_first_valid_batch(self):
 		return self.preprocess_vgg(self.dataset['val2014']['images'][:self.valid_batchsize])
 
+def parse_args():
 
-def train():
-	# TODO: These should be user accpeted:
-	DEBUG = True
-	VALIDATE = False
-	NET_TYPE = 1 # 0-fns, 1-cin
-	STYLE_LOSS_LAYERS = {'conv1_2': 4e-4,'conv2_2': 4e-4,'conv3_3': 4e-4,'conv4_3': 4e-4}
-	TOTAL_VARIATION_LOSS_WEIGHT = 0.
-	CONTENT_LOSS_LAYER = 'conv3_3'
-	NUM_EPOCHS = 2 # 40k steps is around 8 epochs
-	STYLE_IMAGE_LOCATION = REPO_DIR + 'data/images/styles/candy.jpg'
-	FOLDER_SUFFIX = 'jc_s5_ve-6_i_candy'
+	parser = argparse.ArgumentParser()
+	parser.add_argument("-d", "--debug", type=int, choices=[0,1], default=1,
+						help="display loss information and save intermediate images when training")
+	parser.add_argument("-v", "--validate", type=int, choices=[0,1], default=0,
+						help="calculate validation loss after each epoch (warning: increases train time)")
+	parser.add_argument("-n", "--network", type=int, choices=[0,1], default=1,
+						help="transform network architecture: 0- fast neural style; 1- conditional instance norm")
+	# That's nice: http://stackoverflow.com/a/20493276
+	parser.add_argument('-s', '--styleloss', type=yaml.load, default="{'conv1_2': 4e-4,'conv2_2': 4e-4,'conv3_3': 4e-4,'conv4_3': 4e-4}",
+						help="a dict with (layer, weight) mappings")
+	parser.add_argument('-t', '--varloss', type=float, default=0.,
+						help="the weight of the total variational loss")
+	parser.add_argument('-c', '--contentloss', type=str, default='conv3_3',
+						help="the content loss layer; weight fixed at 1.0")
+	parser.add_argument("-e", "--epochs", type=int, default=2,
+						help="the number of epochs to train the system")
+	parser.add_argument("-b", "--batchsize", type=int, default=4,
+						help="the batchsize to be used during training")
+	parser.add_argument('-i', '--styleloc', type=str, default=REPO_DIR + 'data/images/styles/candy.jpg',
+						help="the file to be used as the style image, or the folder containing all the style images")
+	parser.add_argument('-a', '--suffix', type=str, default='jc_s5_ve-6_i_candy',
+						help="the suffix to be added to the folders used to store debug images and trained model params")
+
+	args = parser.parse_args()
+
+	# Needed because YAML fails to parse 4e-4 : http://stackoverflow.com/a/30462009
+	for k in args.styleloss:
+		args.styleloss[k]=float(args.styleloss[k])
+
+	return args
+
+def train(args):
+	DEBUG = args.debug
+	VALIDATE = args.validate
+	NET_TYPE = args.network
+	STYLE_LOSS_LAYERS = args.styleloss
+	TOTAL_VARIATION_LOSS_WEIGHT = args.varloss
+	CONTENT_LOSS_LAYER = args.contentloss
+	NUM_EPOCHS = args.epochs
+	STYLE_IMAGE_LOCATION = args.styleloc
+	FOLDER_SUFFIX = args.suffix
 
 	create_dir_if_not_exists(REPO_DIR + 'data/model/trained_' + FOLDER_SUFFIX)
 	create_dir_if_not_exists(REPO_DIR + 'data/debug/im_' + FOLDER_SUFFIX)
@@ -409,4 +442,5 @@ def stylize():
 	print('Done.')
 
 if __name__ == '__main__':
-	train()
+	args = parse_args()
+	train(args)
