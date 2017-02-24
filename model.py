@@ -68,6 +68,8 @@ class Network(object):
 			shape=(None, shape[0], shape[1], shape[2])
 		self.shape = shape
 
+		self.num_styles = num_styles
+
 		self.network['loss_net'] = {}
 		self.setup_loss_net()
 		self.load_loss_net_weights()
@@ -75,7 +77,6 @@ class Network(object):
 		self.network['transform_net'] = {}
 		self.setup_transform_net(input_var)
 
-		self.num_styles = num_styles
 
 	def setup_loss_net(self):
 		"""
