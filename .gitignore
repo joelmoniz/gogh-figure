@@ -91,4 +91,7 @@ ENV/
 # gogh-figure specific
 batchnorm_candy*.txt
 batchnorm_candy*.inc
+batchnorm_monet*.txt
+batchnorm_misc*.txt
+test_*.txt
 test*/
