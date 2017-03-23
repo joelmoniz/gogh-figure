@@ -176,7 +176,7 @@ class CocoData(object):
 
 	def __init__(self, h5_location=None, train_batchsize=16, valid_batchsize=16):
 		if h5_location == None:
-			h5_location = REPO_DIR + "data/images/content/ms-coco-256.h5"
+			h5_location = REPO_DIR + "data/content/ms-coco-256.h5"
 		if not path_exists(h5_location):
 			print("Please download the COCO dataset, run the " +
 				self.PREPARE_COCO_SCRIPT_NAME + " and ensure that the hdf5 file is at " +

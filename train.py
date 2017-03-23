@@ -41,7 +41,7 @@ def parse_args():
 						help="the number of epochs to train the system")
 	parser.add_argument("-b", "--batchsize", type=int, default=4,
 						help="the batchsize to be used during training")
-	parser.add_argument('-i', '--styleloc', type=str, default=REPO_DIR + 'data/images/styles/candy.jpg',
+	parser.add_argument('-i', '--styleloc', type=str, default=REPO_DIR + 'data/styles/candy.jpg',
 						help="the file to be used as the style image, or the folder containing all the style images")
 	parser.add_argument('-a', '--suffix', type=str, default='jc_s5_ve-6_i_candy',
 						help="the suffix to be added to the folders used to store debug images and trained model params")
