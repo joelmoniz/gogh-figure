@@ -49,6 +49,9 @@ def load_params(network, model_file):
 def save_params(file_name, network):
 	np.savez(file_name, *lasagne.layers.get_all_param_values(network))
 
+def get_image_dim(path):
+	return cv2.imread(path, cv2.IMREAD_COLOR).shape
+
 def get_image(path, dim=None, grey=False, maintain_aspect=True, center=True):
 	"""
 	Given an image path, return a 3D numpy array with the image. Maintains aspect ratio and center crops the image to match dim.
@@ -86,17 +89,21 @@ def get_image(path, dim=None, grey=False, maintain_aspect=True, center=True):
 def get_image_as_batch(path, **kwargs):
 	return np.expand_dims(get_image(path, **kwargs), axis=0)
 
-def get_images(path, dim=None, grey=False, **kwargs):
+def get_images(path, dim=None, grey=False, maintain_aspect=True, center=True, correct_vertical=False):
 	"""
 	Given a folder, return a 4D numpy array with all images in the folder
+	correct_vertical: if dim is given assuming the image is in portrait, but the image is actually in landscape (or vice versa), correct it
 	"""
 	if os.path.isfile(path):
-		return get_image_as_batch(path, dim=dim, grey=grey, **kwargs)
+		return get_image_as_batch(path, dim=dim, grey=grey, maintain_aspect=maintain_aspect, center=center)
+
+	def return_as_list():
+		return dim == None or (maintain_aspect and not center) or correct_vertical
 
 	path += '/'
 	ims_paths = [path+im_path for im_path in os.listdir(path) if os.path.isfile(path+im_path)]
 
-	if dim == None:
+	if return_as_list():
 		ims = []
 	else:
 		if grey:
@@ -105,10 +112,16 @@ def get_images(path, dim=None, grey=False, **kwargs):
 			ims = np.zeros((len(ims_paths), 3, dim[0], dim[1]), dtype='float32')
 
 	for i, im_path in enumerate(ims_paths):
-		if dim == None:
-			ims.append(get_image(im_path, dim, grey, **kwargs))
+		if return_as_list():
+			shp = get_image_dim(im_path)
+			if len(shp) == 3:
+				shp = shp[1:]
+			if dim == None or not correct_vertical or (dim[0] < dim[1] and shp[0] < shp[1]) or (dim[0] > dim[1] and shp[0] > shp[1]):
+				ims.append(get_image(im_path, dim, grey, maintain_aspect=maintain_aspect, center=center))
+			else:
+				ims.append(get_image(im_path, dim[::-1], grey, maintain_aspect=maintain_aspect, center=center))
 		else:
-			ims[i] = get_image(im_path, dim, grey, **kwargs)
+			ims[i] = get_image(im_path, dim, grey, maintain_aspect=maintain_aspect, center=center)
 
 	return ims
 

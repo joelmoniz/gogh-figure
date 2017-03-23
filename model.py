@@ -233,34 +233,3 @@ class CocoData(object):
 
 	def get_first_valid_batch(self):
 		return self.preprocess_vgg(self.dataset['val2014']['images'][:self.valid_batchsize])
-
-def stylize():
-	# TODO: These should be user accpeted:
-	INPUT_LOCATION = 'testims/'
-	OUTPUT_LOCATION = 'testims_out128/'
-	MODEL_FILE = 'e2.npz'
-	shape = (256, 256)
-
-	image_var = T.tensor4('inputs')
-
-	print('Loading Networks...')
-	net = Network(image_var, shape)
-	load_params(net.network['transform_net'], MODEL_FILE)
-
-	print('Loading Images...')
-	data = CocoData(train_batchsize=4)
-	ims = data.preprocess_vgg(get_images(INPUT_LOCATION, shape), True)
-
-	print('Compiling Functions...')
-	# initialize transformer network function
-	transform_pastiche_out = lasagne.layers.get_output(net.network['transform_net'])
-	pastiche_transform_fn = theano.function([image_var], transform_pastiche_out)
-
-	print('Transforming images...')
-	out_ims = pastiche_transform_fn(ims)
-
-	print('Saving images...')
-	save_ims(OUTPUT_LOCATION, data.deprocess_vgg(out_ims))
-
-	print('Done.')
-
