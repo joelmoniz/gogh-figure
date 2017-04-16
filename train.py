@@ -24,9 +24,13 @@ import yaml
 def parse_args():
 
 	parser = argparse.ArgumentParser()
-	parser.add_argument("-d", "--debug", type=int, choices=[0,1], default=1,
-						help="display loss information and save intermediate images when training")
-	parser.add_argument("-v", "--validate", type=int, choices=[0,1], default=0,
+	parser.add_argument("-d", "--debug", type=int, choices=[0,1,2,3], default=1,
+						help="display loss information and save intermediate images when training:" +
+						"\n\t0- off" +
+						"\n\t1- print loss information" +
+						"\n\t2- print loss information, save intermediate images every epoch" +
+						"\n\t3- print loss information, save intermediate images every few hundred iterations" )
+	parser.add_argument("-v", "--validate", action='store_true',
 						help="calculate validation loss after each epoch (warning: increases train time)")
 	parser.add_argument("-n", "--network", type=int, choices=[0,1], default=1,
 						help="transform network architecture: 0- fast neural style; 1- conditional instance norm")
@@ -137,15 +141,15 @@ def train(args):
 	# TODO: If using conditional instance norm, make this deterministic
 	# valid_fn = theano.function([image_var], loss)
 
-	if DEBUG:
-		content_ims = data.get_first_valid_batch()
-		save_params(REPO_DIR + 'data/model/trained_' + FOLDER_SUFFIX + '/e0.npz', net.network['transform_net'])
-		save_ims(REPO_DIR + 'data/debug/im_' + FOLDER_SUFFIX, data.deprocess_vgg(content_ims), 'orig_im')
-		for i in range(0, len(style_im)):
-			if NET_TYPE == 1:
-				save_ims(REPO_DIR + 'data/debug/im_' + FOLDER_SUFFIX, pastiche_transform_fn(content_ims, [i]*data.valid_batchsize), 'e0_s'+str(i)+'_im')
-			elif NET_TYPE == 0:
-				save_ims(REPO_DIR + 'data/debug/im_' + FOLDER_SUFFIX, data.deprocess_vgg(pastiche_transform_fn(content_ims, [i]*data.valid_batchsize)), 'e0_s'+str(i)+'_im')
+	# if DEBUG:
+	# 	content_ims = data.get_first_valid_batch()
+	# 	save_params(REPO_DIR + 'data/model/trained_' + FOLDER_SUFFIX + '/e0.npz', net.network['transform_net'])
+	# 	save_ims(REPO_DIR + 'data/debug/im_' + FOLDER_SUFFIX, data.deprocess_vgg(content_ims), 'orig_im')
+	# 	for i in range(0, len(style_im)):
+	# 		if NET_TYPE == 1:
+	# 			save_ims(REPO_DIR + 'data/debug/im_' + FOLDER_SUFFIX, pastiche_transform_fn(content_ims, [i]*data.valid_batchsize), 'e0_s'+str(i)+'_im')
+	# 		elif NET_TYPE == 0:
+	# 			save_ims(REPO_DIR + 'data/debug/im_' + FOLDER_SUFFIX, data.deprocess_vgg(pastiche_transform_fn(content_ims, [i]*data.valid_batchsize)), 'e0_s'+str(i)+'_im')
 
 	print('Commencing Training...')
 	# For each epoch
@@ -171,14 +175,14 @@ def train(args):
 			if DEBUG and train_batch_num%400 == 0:
 				print("Batch " + str(train_batch_num) + ":\t{:.6f}\t{:.6f}\t{:.6f}\t{:.6f}\t{:.6f}".format(train_err / train_batch_num, total_batch_err/400, content_loss_err/400, style_loss_err/400, total_variation_loss_err/400))
 				total_batch_err= content_loss_err= style_loss_err= total_variation_loss_err = 0
-				if train_batch_num%min(400*len(style_im), 5000) == 0:
-					for i in range(0, len(style_im)):
-						if NET_TYPE == 1:
-							save_im(REPO_DIR + 'data/debug/im_' + FOLDER_SUFFIX + '/e' + str(epoch + 1) + 'b' + str(train_batch_num) + 's' + str(i) + '.jpg', pastiche_transform_fn(data.get_first_valid_batch(), [i]*data.valid_batchsize))
-						elif NET_TYPE == 0:
-							save_im(REPO_DIR + 'data/debug/im_' + FOLDER_SUFFIX + '/e' + str(epoch + 1) + 'b' + str(train_batch_num) + 's' + str(i) + '.jpg', data.deprocess_vgg(pastiche_transform_fn(data.get_first_valid_batch(), [i]*data.valid_batchsize)))
+			if DEBUG>=3 and train_batch_num%min(400*len(style_im), 5000) == 0:
+				for i in range(0, len(style_im)):
+					if NET_TYPE == 1:
+						save_im(REPO_DIR + 'data/debug/im_' + FOLDER_SUFFIX + '/e' + str(epoch + 1) + 'b' + str(train_batch_num) + 's' + str(i) + '.jpg', pastiche_transform_fn(data.get_first_valid_batch(), [i]*data.valid_batchsize))
+					elif NET_TYPE == 0:
+						save_im(REPO_DIR + 'data/debug/im_' + FOLDER_SUFFIX + '/e' + str(epoch + 1) + 'b' + str(train_batch_num) + 's' + str(i) + '.jpg', data.deprocess_vgg(pastiche_transform_fn(data.get_first_valid_batch(), [i]*data.valid_batchsize)))
 
-		if DEBUG:
+		if DEBUG>=2:
 			for i in range(0, len(style_im)):
 				if NET_TYPE == 1:
 					save_ims(REPO_DIR + 'data/debug/im_' + FOLDER_SUFFIX, pastiche_transform_fn(data.get_first_valid_batch(), [i]*data.valid_batchsize), 'e' + str(epoch + 1) + '_s' + str(i) + '_im')
