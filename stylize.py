@@ -35,7 +35,7 @@ def parse_args():
 	parser.add_argument("-b", "--batchsize", type=int, default=4,
 						help="the batchsize to be used during stylization")
 	parser.add_argument("-d", "--dim", type=str, default=None,
-						help="the (rough) output dimension; None (default) leaves the images the same size as the input; providing a tuple makes the pastiche roughly this size; (975, 1300) seems to work well")
+						help="the (rough) output dimension; None (default) leaves the images the same size as the input; providing a tuple makes the pastiche roughly this size; (975, 1300) seems to work well if the image is quite small, None is fine for larger images")
 
 	args = parser.parse_args()
 
@@ -74,10 +74,13 @@ def stylize(args):
 		out_ims = []
 		start_time = time.time()
 		imb = np.expand_dims(im, axis=0)
-		imb=np.tile(imb, (MAX_BATCH_SIZE,1,1,1))
+		imb_tiled=np.tile(imb, (MAX_BATCH_SIZE,1,1,1))
 		for i in range(NUM_STYLES/MAX_BATCH_SIZE):
-			out_ims += list(pastiche_transform_fn(imb, range(MAX_BATCH_SIZE*i, MAX_BATCH_SIZE*(i+1))))
-		out_ims += list(pastiche_transform_fn(imb, range(MAX_BATCH_SIZE*(NUM_STYLES/MAX_BATCH_SIZE), NUM_STYLES)))
+			out_ims += list(pastiche_transform_fn(imb_tiled, range(MAX_BATCH_SIZE*i, MAX_BATCH_SIZE*(i+1))))
+		style_batch_rem = MAX_BATCH_SIZE*(NUM_STYLES/MAX_BATCH_SIZE)
+		if style_batch_rem != NUM_STYLES:
+			imb_tiled=np.tile(imb, (NUM_STYLES-style_batch_rem,1,1,1))
+			out_ims += list(pastiche_transform_fn(imb_tiled, range(style_batch_rem, NUM_STYLES)))
 		print("  Done with image {}. Time: {:.3f}s".format(num, time.time() - start_time))
 		save_ims(OUTPUT_LOCATION, out_ims, 'im' + str(num) + '_')
 		print('  Saved.')
