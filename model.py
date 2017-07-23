@@ -114,8 +114,8 @@ class Network(object):
 	def setup_transform_net(self, input_var=None):
 		transform_net = InputLayer(shape=self.shape, input_var=input_var)
 		transform_net = style_conv_block(transform_net, self.num_styles, 32, 9, 1)
-		transform_net = style_conv_block(transform_net, self.num_styles, 64, 9, 2)
-		transform_net = style_conv_block(transform_net, self.num_styles, 128, 9, 2)
+		transform_net = style_conv_block(transform_net, self.num_styles, 64, 3, 2)
+		transform_net = style_conv_block(transform_net, self.num_styles, 128, 3, 2)
 		for _ in range(5):
 			transform_net = residual_block(transform_net, self.num_styles)
 		transform_net = nn_upsample(transform_net, self.num_styles)
